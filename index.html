@@ -1,0 +1,2794 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#1a1a2e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>❤️ AmorReal - Relacionamentos Sérios</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&family=Playfair+Display:wght@600;700;800&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --primary: #E91E63;
+  --primary-dark: #C2185B;
+  --primary-light: #F48FB1;
+  --secondary: #FF4081;
+  --accent: #FF80AB;
+  --bg-dark: #0D0D1A;
+  --bg-card: #1A1A2E;
+  --bg-card-light: #252542;
+  --text-primary: #FFFFFF;
+  --text-secondary: #B0B0C0;
+  --text-muted: #6B6B80;
+  --success: #4CAF50;
+  --warning: #FF9800;
+  --error: #F44336;
+  --online: #4CAF50;
+  --whatsapp: #25D366;
+}
+
+html { font-size: 16px; -webkit-text-size-adjust: 100%; }
+
+body {
+  font-family: 'Poppins', -apple-system, BlinkMacSystemFont, sans-serif;
+  background: var(--bg-dark);
+  color: var(--text-primary);
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow-x: hidden;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+.font-display { font-family: 'Playfair Display', Georgia, serif; }
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: var(--bg-dark); }
+::-webkit-scrollbar-thumb { background: var(--primary); border-radius: 4px; }
+
+/* Animations */
+@keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes slideUp { from { opacity: 0; transform: translateY(40px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+@keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-15px); } }
+@keyframes glow { 0%, 100% { box-shadow: 0 0 30px rgba(233,30,99,0.4); } 50% { box-shadow: 0 0 60px rgba(233,30,99,0.8); } }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes heartbeat { 0%, 100% { transform: scale(1); } 25% { transform: scale(1.2); } 50% { transform: scale(1); } 75% { transform: scale(1.2); } }
+@keyframes toastIn { from { opacity: 0; transform: translateX(100%); } to { opacity: 1; transform: translateX(0); } }
+@keyframes bounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+
+.animate-fade { animation: fadeIn 0.6s ease-out forwards; }
+.animate-slide-up { animation: slideUp 0.6s ease-out forwards; }
+.animate-pulse { animation: pulse 2s ease-in-out infinite; }
+.animate-float { animation: float 4s ease-in-out infinite; }
+.animate-glow { animation: glow 3s ease-in-out infinite; }
+.animate-heartbeat { animation: heartbeat 1.5s ease-in-out infinite; }
+.animate-bounce { animation: bounce 2s ease-in-out infinite; }
+
+/* Loading */
+.loading-overlay {
+  position: fixed; inset: 0;
+  background: rgba(13,13,26,0.95);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  z-index: 10000; gap: 24px;
+}
+.spinner { width: 60px; height: 60px; border: 4px solid rgba(233,30,99,0.2); border-top-color: var(--primary); border-radius: 50%; animation: spin 1s linear infinite; }
+.loading-text { font-size: 1.125rem; color: var(--text-secondary); font-weight: 500; }
+
+/* Toast */
+.toast-container { position: fixed; top: 24px; right: 24px; z-index: 10001; display: flex; flex-direction: column; gap: 12px; max-width: 420px; width: calc(100% - 48px); }
+.toast { padding: 18px 24px; border-radius: 16px; display: flex; align-items: center; gap: 16px; animation: toastIn 0.4s ease-out; box-shadow: 0 10px 40px rgba(0,0,0,0.4); font-size: 1rem; font-weight: 500; }
+.toast-success { background: linear-gradient(135deg, #2E7D32, #4CAF50); }
+.toast-error { background: linear-gradient(135deg, #C62828, #F44336); }
+.toast-warning { background: linear-gradient(135deg, #E65100, #FF9800); }
+.toast-info { background: linear-gradient(135deg, #1565C0, #2196F3); }
+.toast-icon { font-size: 1.5rem; flex-shrink: 0; }
+.toast-message { flex: 1; }
+.toast-close { background: none; border: none; color: rgba(255,255,255,0.7); font-size: 1.5rem; cursor: pointer; padding: 0; line-height: 1; }
+
+/* WhatsApp Float Button - Draggable */
+.whatsapp-float {
+  position: fixed; z-index: 999;
+  width: 64px; height: 64px; border-radius: 50%;
+  background: var(--whatsapp); color: white;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 2rem;
+  cursor: grab;
+  box-shadow: 0 6px 30px rgba(37,211,102,0.5);
+  text-decoration: none;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  transition: box-shadow 0.3s, transform 0.15s;
+}
+.whatsapp-float:active { cursor: grabbing; }
+.whatsapp-float.dragging {
+  transform: scale(1.15);
+  box-shadow: 0 12px 50px rgba(37,211,102,0.7);
+  transition: box-shadow 0.2s, transform 0.15s;
+}
+.whatsapp-float:not(.dragging):hover {
+  box-shadow: 0 8px 40px rgba(37,211,102,0.7);
+}
+.whatsapp-tooltip {
+  position: absolute; top: 50%; transform: translateY(-50%);
+  background: white; color: #333; padding: 10px 18px;
+  border-radius: 12px; font-size: 0.9rem; font-weight: 600;
+  white-space: nowrap; box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+  opacity: 0; transition: opacity 0.3s; pointer-events: none;
+}
+.whatsapp-float.on-left .whatsapp-tooltip { left: 80px; right: auto; }
+.whatsapp-float.on-right .whatsapp-tooltip { right: 80px; left: auto; }
+.whatsapp-float:not(.dragging):hover .whatsapp-tooltip { opacity: 1; }
+
+@media (max-width: 768px) {
+  .whatsapp-float { width: 56px; height: 56px; font-size: 1.75rem; }
+  .whatsapp-tooltip { display: none; }
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 12px;
+  padding: 16px 32px; font-size: 1.125rem; font-weight: 600;
+  border-radius: 16px; border: none; cursor: pointer;
+  transition: all 0.3s ease; text-decoration: none; font-family: inherit; white-space: nowrap;
+}
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.btn-primary { background: linear-gradient(135deg, var(--primary), var(--secondary)); color: white; box-shadow: 0 8px 30px rgba(233,30,99,0.4); }
+.btn-primary:hover:not(:disabled) { transform: translateY(-3px); box-shadow: 0 12px 40px rgba(233,30,99,0.6); }
+.btn-secondary { background: rgba(255,255,255,0.1); color: white; border: 2px solid rgba(255,255,255,0.2); }
+.btn-secondary:hover:not(:disabled) { background: rgba(255,255,255,0.2); }
+.btn-success { background: linear-gradient(135deg, #2E7D32, #4CAF50); color: white; }
+.btn-warning { background: linear-gradient(135deg, #E65100, #FF9800); color: white; }
+.btn-outline { background: transparent; color: var(--primary); border: 2px solid var(--primary); }
+.btn-outline:hover:not(:disabled) { background: var(--primary); color: white; }
+.btn-whatsapp { background: var(--whatsapp); color: white; }
+.btn-sm { padding: 12px 24px; font-size: 1rem; }
+.btn-lg { padding: 20px 48px; font-size: 1.25rem; }
+.btn-full { width: 100%; }
+.btn-icon { width: 56px; height: 56px; padding: 0; border-radius: 50%; }
+
+/* Form */
+.form-group { margin-bottom: 24px; }
+.form-label { display: block; font-size: 1rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 10px; }
+.form-input {
+  width: 100%; padding: 18px 24px; font-size: 1.125rem; font-family: inherit;
+  background: var(--bg-card-light); border: 2px solid transparent;
+  border-radius: 16px; color: var(--text-primary); transition: all 0.3s ease; outline: none;
+}
+.form-input:focus { border-color: var(--primary); background: var(--bg-card); box-shadow: 0 0 0 4px rgba(233,30,99,0.15); }
+.form-input::placeholder { color: var(--text-muted); }
+.form-input.error { border-color: var(--error); }
+.form-error { display: flex; align-items: center; gap: 8px; color: var(--error); font-size: 0.95rem; margin-top: 8px; font-weight: 500; }
+.form-hint { color: var(--text-muted); font-size: 0.9rem; margin-top: 8px; }
+.input-wrapper { position: relative; }
+.input-icon { position: absolute; right: 20px; top: 50%; transform: translateY(-50%); font-size: 1.5rem; cursor: pointer; color: var(--text-muted); }
+select.form-input { cursor: pointer; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%23B0B0C0' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 20px center; padding-right: 56px; }
+select.form-input option { background: var(--bg-card); color: var(--text-primary); }
+textarea.form-input { resize: vertical; min-height: 140px; }
+
+/* Photo Upload */
+.photo-upload-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+.photo-upload-item {
+  aspect-ratio: 1; border-radius: 20px; overflow: hidden;
+  background: var(--bg-card-light); border: 3px dashed rgba(255,255,255,0.2);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  cursor: pointer; transition: all 0.3s; position: relative;
+}
+.photo-upload-item:hover { border-color: var(--primary); background: rgba(233,30,99,0.1); }
+.photo-upload-item.has-photo { border: none; }
+.photo-upload-item img { width: 100%; height: 100%; object-fit: cover; }
+.photo-upload-item .photo-placeholder { text-align: center; padding: 20px; }
+.photo-upload-item .photo-placeholder-icon { font-size: 2.5rem; margin-bottom: 8px; }
+.photo-upload-item .photo-placeholder-text { font-size: 0.9rem; color: var(--text-muted); }
+.photo-upload-item .photo-delete {
+  position: absolute; top: 8px; right: 8px;
+  width: 32px; height: 32px; border-radius: 50%;
+  background: rgba(244,67,54,0.9); color: white;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 1.25rem; cursor: pointer; opacity: 0; transition: opacity 0.3s;
+}
+.photo-upload-item:hover .photo-delete { opacity: 1; }
+.photo-upload-item.main-photo { grid-column: span 2; grid-row: span 2; }
+.photo-upload-item.main-photo .photo-placeholder-icon { font-size: 4rem; }
+.photo-upload-item.main-photo .photo-placeholder-text { font-size: 1.1rem; }
+
+@media (max-width: 600px) {
+  .photo-upload-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .photo-upload-item.main-photo { grid-column: span 2; }
+}
+
+/* Cards */
+.card { background: var(--bg-card); border-radius: 24px; border: 1px solid rgba(255,255,255,0.08); overflow: hidden; transition: all 0.4s ease; }
+.card:hover { border-color: rgba(233,30,99,0.3); transform: translateY(-5px); box-shadow: 0 20px 60px rgba(233,30,99,0.15); }
+.card-body { padding: 28px; }
+.glass { background: rgba(255,255,255,0.05); backdrop-filter: blur(20px); border: 1px solid rgba(255,255,255,0.1); }
+
+/* Avatar & Photos */
+.avatar { display: flex; align-items: center; justify-content: center; border-radius: 50%; font-weight: 700; color: white; flex-shrink: 0; text-transform: uppercase; overflow: hidden; }
+.avatar img { width: 100%; height: 100%; object-fit: cover; }
+.avatar-xs { width: 36px; height: 36px; font-size: 0.875rem; }
+.avatar-sm { width: 48px; height: 48px; font-size: 1rem; }
+.avatar-md { width: 64px; height: 64px; font-size: 1.25rem; }
+.avatar-lg { width: 96px; height: 96px; font-size: 2rem; }
+.avatar-xl { width: 128px; height: 128px; font-size: 2.5rem; }
+.avatar-wrapper { position: relative; display: inline-block; }
+.avatar-status { position: absolute; bottom: 4px; right: 4px; width: 16px; height: 16px; background: var(--online); border-radius: 50%; border: 3px solid var(--bg-card); }
+.avatar-badge { position: absolute; top: -4px; right: -4px; background: #2196F3; color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; border: 2px solid var(--bg-card); }
+
+/* Photo Gallery */
+.photo-gallery { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; border-radius: 16px; overflow: hidden; }
+.photo-gallery-item { aspect-ratio: 1; overflow: hidden; cursor: pointer; }
+.photo-gallery-item img { width: 100%; height: 100%; object-fit: cover; transition: transform 0.3s; }
+.photo-gallery-item:hover img { transform: scale(1.1); }
+.photo-gallery-item.main { grid-column: span 2; grid-row: span 2; }
+
+/* Subscription Banner */
+.subscription-banner {
+  background: linear-gradient(135deg, var(--warning), #F57C00);
+  padding: 20px 24px; border-radius: 16px;
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+.subscription-banner-icon { font-size: 2.5rem; }
+.subscription-banner-text { flex: 1; min-width: 200px; }
+.subscription-banner-title { font-size: 1.25rem; font-weight: 700; margin-bottom: 4px; }
+.subscription-banner-desc { font-size: 1rem; opacity: 0.9; }
+
+.subscription-active {
+  background: linear-gradient(135deg, var(--success), #2E7D32);
+}
+
+/* Compat Bar */
+.compat-bar { height: 10px; background: rgba(255,255,255,0.1); border-radius: 5px; overflow: hidden; }
+.compat-fill { height: 100%; background: linear-gradient(90deg, var(--primary), #FF9800); border-radius: 5px; transition: width 1s ease-out; }
+
+/* Badge */
+.badge { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 50px; font-size: 0.875rem; font-weight: 600; }
+.badge-primary { background: rgba(233,30,99,0.2); color: var(--primary-light); }
+.badge-success { background: rgba(76,175,80,0.2); color: #81C784; }
+.badge-warning { background: rgba(255,152,0,0.2); color: #FFB74D; }
+.badge-error { background: rgba(244,67,54,0.2); color: #EF9A9A; }
+.badge-info { background: rgba(33,150,243,0.2); color: #64B5F6; }
+.badge-premium { background: linear-gradient(135deg, #FFD700, #FFA000); color: #000; }
+
+/* Navigation */
+.nav-item { display: flex; align-items: center; gap: 16px; padding: 16px 20px; border-radius: 16px; cursor: pointer; transition: all 0.3s ease; font-size: 1.0625rem; font-weight: 500; color: var(--text-secondary); }
+.nav-item:hover { background: rgba(233,30,99,0.1); color: var(--primary-light); }
+.nav-item.active { background: rgba(233,30,99,0.2); color: var(--primary-light); font-weight: 600; }
+.nav-icon { font-size: 1.5rem; }
+.nav-badge { margin-left: auto; background: var(--primary); color: white; min-width: 24px; height: 24px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; }
+
+/* Toggle */
+.toggle { width: 56px; height: 32px; background: var(--bg-card-light); border-radius: 16px; cursor: pointer; position: relative; transition: background 0.3s; }
+.toggle.active { background: var(--success); }
+.toggle::after { content: ''; position: absolute; width: 26px; height: 26px; background: white; border-radius: 50%; top: 3px; left: 3px; transition: transform 0.3s; }
+.toggle.active::after { transform: translateX(24px); }
+
+/* Interest Tags */
+.interest-tag { display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; border-radius: 50px; font-size: 1rem; font-weight: 500; border: 2px solid rgba(255,255,255,0.15); background: transparent; color: var(--text-secondary); cursor: pointer; transition: all 0.3s ease; }
+.interest-tag:hover { border-color: var(--primary); color: var(--primary-light); }
+.interest-tag.selected { background: rgba(233,30,99,0.2); border-color: var(--primary); color: var(--primary-light); }
+
+/* Profile Card */
+.profile-card { background: var(--bg-card); border-radius: 24px; overflow: hidden; border: 1px solid rgba(255,255,255,0.08); transition: all 0.4s cubic-bezier(0.175,0.885,0.32,1.275); }
+.profile-card:hover { transform: translateY(-10px); box-shadow: 0 30px 80px rgba(233,30,99,0.25); border-color: rgba(233,30,99,0.4); }
+.profile-card-header { height: 280px; position: relative; overflow: hidden; }
+.profile-card-header img { width: 100%; height: 100%; object-fit: cover; }
+.profile-card-header .no-photo { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 4rem; }
+.profile-card-body { padding: 24px; }
+.profile-card-name { font-size: 1.375rem; font-weight: 700; margin-bottom: 4px; }
+.profile-card-info { color: var(--text-muted); font-size: 1rem; margin-bottom: 16px; }
+.profile-card-bio { color: var(--text-secondary); font-size: 1rem; line-height: 1.6; margin-bottom: 16px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+/* Photo Lightbox */
+.lightbox { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 24px; }
+.lightbox-content { max-width: 90vw; max-height: 90vh; position: relative; }
+.lightbox-content img { max-width: 100%; max-height: 85vh; border-radius: 16px; }
+.lightbox-close { position: absolute; top: -50px; right: 0; width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,0.1); border: none; color: white; font-size: 1.5rem; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.lightbox-nav { position: absolute; top: 50%; transform: translateY(-50%); width: 50px; height: 50px; border-radius: 50%; background: rgba(255,255,255,0.1); border: none; color: white; font-size: 1.5rem; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+.lightbox-prev { left: -70px; }
+.lightbox-next { right: -70px; }
+.lightbox-counter { text-align: center; margin-top: 16px; color: var(--text-secondary); }
+
+/* Modal */
+.modal-overlay { position: fixed; inset: 0; background: rgba(13,13,26,0.9); backdrop-filter: blur(10px); display: flex; align-items: center; justify-content: center; padding: 24px; z-index: 9999; animation: fadeIn 0.3s ease-out; }
+.modal-content { background: var(--bg-card); border-radius: 32px; max-width: 700px; width: 100%; max-height: 90vh; overflow-y: auto; animation: slideUp 0.4s ease-out; }
+.modal-close { position: absolute; top: 20px; right: 20px; width: 44px; height: 44px; border-radius: 50%; background: rgba(0,0,0,0.5); border: none; color: white; font-size: 1.5rem; cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 10; }
+
+/* Layout */
+.container { width: 100%; max-width: 1400px; margin: 0 auto; padding: 0 24px; }
+.grid { display: grid; gap: 24px; }
+.grid-2 { grid-template-columns: repeat(2, 1fr); }
+.grid-3 { grid-template-columns: repeat(3, 1fr); }
+.grid-4 { grid-template-columns: repeat(4, 1fr); }
+
+@media (max-width: 1200px) { .grid-4 { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 992px) { .grid-3, .grid-4 { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 768px) {
+  html { font-size: 15px; }
+  .container { padding: 0 16px; }
+  .grid-2, .grid-3, .grid-4 { grid-template-columns: 1fr; }
+  .btn { padding: 14px 24px; font-size: 1rem; }
+  .form-input { padding: 16px 20px; font-size: 1rem; }
+  .card-body { padding: 20px; }
+  .profile-card-header { height: 220px; }
+}
+
+.app-layout { display: flex; min-height: 100vh; min-height: 100dvh; }
+.sidebar { width: 280px; background: var(--bg-card); border-right: 1px solid rgba(255,255,255,0.08); display: flex; flex-direction: column; position: fixed; left: 0; top: 0; bottom: 0; z-index: 100; overflow-y: auto; }
+.sidebar-header { padding: 28px 24px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+.sidebar-nav { flex: 1; padding: 20px 16px; display: flex; flex-direction: column; gap: 8px; }
+.sidebar-footer { padding: 20px 16px; border-top: 1px solid rgba(255,255,255,0.08); }
+.main-content { flex: 1; margin-left: 280px; min-height: 100vh; min-height: 100dvh; }
+.page-content { padding: 32px; }
+.page-header { margin-bottom: 32px; }
+.page-title { font-size: 2rem; font-weight: 700; margin-bottom: 8px; }
+.page-subtitle { color: var(--text-secondary); font-size: 1.125rem; }
+
+.mobile-nav { display: none; position: fixed; bottom: 0; left: 0; right: 0; background: var(--bg-card); border-top: 1px solid rgba(255,255,255,0.08); padding: 12px 8px; padding-bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 100; }
+.mobile-nav-items { display: flex; justify-content: space-around; }
+.mobile-nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 16px; color: var(--text-muted); font-size: 0.75rem; font-weight: 500; cursor: pointer; transition: color 0.3s; border-radius: 12px; }
+.mobile-nav-item:hover, .mobile-nav-item.active { color: var(--primary-light); background: rgba(233,30,99,0.1); }
+.mobile-nav-icon { font-size: 1.5rem; }
+
+@media (max-width: 992px) {
+  .sidebar { display: none; }
+  .main-content { margin-left: 0; padding-bottom: 100px; }
+  .mobile-nav { display: block; }
+  .page-content { padding: 20px 16px; }
+}
+
+/* Fullscreen */
+.fullscreen-page { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; }
+.fullscreen-center { display: flex; align-items: center; justify-content: center; flex: 1; padding: 24px; }
+
+/* Auth */
+.auth-container { width: 100%; max-width: 520px; }
+.auth-header { text-align: center; margin-bottom: 40px; }
+.auth-logo { font-size: 4rem; margin-bottom: 20px; display: inline-block; }
+.auth-title { font-size: 2.25rem; font-weight: 700; margin-bottom: 12px; }
+.auth-subtitle { color: var(--text-secondary); font-size: 1.125rem; }
+.auth-card { background: var(--bg-card); border-radius: 32px; padding: 40px; border: 1px solid rgba(255,255,255,0.08); }
+.auth-footer { text-align: center; margin-top: 32px; font-size: 1.0625rem; color: var(--text-secondary); }
+.auth-link { color: var(--primary-light); font-weight: 600; cursor: pointer; text-decoration: none; }
+@media (max-width: 768px) { .auth-card { padding: 28px 24px; } .auth-logo { font-size: 3rem; } .auth-title { font-size: 1.75rem; } }
+
+/* Hero */
+.hero { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; position: relative; overflow: hidden; }
+.hero-bg { position: absolute; inset: 0; background: linear-gradient(135deg, var(--bg-dark) 0%, #1A1A3A 50%, #2D1B4E 100%); z-index: 0; }
+.hero-particles { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 1; }
+.hero-particle { position: absolute; opacity: 0.15; font-size: 2rem; }
+.hero-content { position: relative; z-index: 2; flex: 1; display: flex; flex-direction: column; }
+.hero-nav { padding: 24px 32px; display: flex; align-items: center; justify-content: space-between; }
+.hero-logo { display: flex; align-items: center; gap: 12px; }
+.hero-logo-icon { font-size: 2.5rem; }
+.hero-logo-text { font-family: 'Playfair Display', serif; font-size: 1.75rem; font-weight: 700; background: linear-gradient(135deg, var(--primary-light), var(--accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.hero-nav-buttons { display: flex; gap: 16px; }
+.hero-main { flex: 1; display: flex; align-items: center; justify-content: center; text-align: center; padding: 40px 24px; }
+.hero-text { max-width: 800px; }
+.hero-title { font-family: 'Playfair Display', serif; font-size: 4rem; font-weight: 800; line-height: 1.2; margin-bottom: 24px; }
+.hero-title-gradient { background: linear-gradient(135deg, var(--primary-light), #FF6B9D, var(--accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.hero-description { font-size: 1.375rem; color: var(--text-secondary); line-height: 1.7; margin-bottom: 48px; max-width: 600px; margin-left: auto; margin-right: auto; }
+.hero-buttons { display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; }
+.hero-stats { display: flex; justify-content: center; gap: 64px; margin-top: 80px; flex-wrap: wrap; }
+.hero-stat { text-align: center; }
+.hero-stat-value { font-size: 2.5rem; font-weight: 800; background: linear-gradient(135deg, var(--primary-light), var(--accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.hero-stat-label { color: var(--text-muted); font-size: 1rem; margin-top: 4px; }
+@media (max-width: 768px) { .hero-nav { padding: 16px; } .hero-logo-text { font-size: 1.25rem; } .hero-title { font-size: 2.5rem; } .hero-description { font-size: 1.125rem; margin-bottom: 32px; } .hero-stats { gap: 32px; margin-top: 48px; } .hero-stat-value { font-size: 2rem; } .hero-nav-buttons .btn { padding: 12px 20px; font-size: 0.95rem; } }
+
+/* Steps */
+.steps { display: flex; align-items: center; justify-content: center; gap: 16px; margin-bottom: 40px; flex-wrap: wrap; }
+.step { display: flex; align-items: center; gap: 12px; }
+.step-circle { width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1.125rem; background: var(--bg-card-light); color: var(--text-muted); transition: all 0.3s; }
+.step.active .step-circle { background: var(--primary); color: white; }
+.step.completed .step-circle { background: var(--success); color: white; }
+.step-label { font-weight: 500; color: var(--text-muted); font-size: 1rem; }
+.step.active .step-label { color: var(--text-primary); }
+.step-line { width: 60px; height: 3px; background: var(--bg-card-light); border-radius: 2px; }
+.step-line.completed { background: var(--success); }
+@media (max-width: 768px) { .step-label { display: none; } .step-line { width: 30px; } }
+
+/* Password Strength */
+.password-strength { height: 6px; background: var(--bg-card-light); border-radius: 3px; margin-top: 12px; overflow: hidden; }
+.password-strength-fill { height: 100%; border-radius: 3px; transition: all 0.3s; }
+.strength-weak { width: 25%; background: var(--error); }
+.strength-fair { width: 50%; background: var(--warning); }
+.strength-good { width: 75%; background: #2196F3; }
+.strength-strong { width: 100%; background: var(--success); }
+
+/* Empty State */
+.empty-state { text-align: center; padding: 60px 24px; }
+.empty-state-icon { font-size: 5rem; margin-bottom: 24px; display: inline-block; }
+.empty-state-title { font-size: 1.5rem; font-weight: 700; margin-bottom: 12px; }
+.empty-state-text { color: var(--text-secondary); font-size: 1.125rem; margin-bottom: 32px; max-width: 400px; margin-left: auto; margin-right: auto; }
+
+/* Admin Table */
+.admin-table { width: 100%; border-collapse: collapse; }
+.admin-table th, .admin-table td { padding: 18px 20px; text-align: left; font-size: 1rem; }
+.admin-table th { background: rgba(255,255,255,0.05); font-weight: 600; color: var(--text-secondary); }
+.admin-table tr { border-bottom: 1px solid rgba(255,255,255,0.05); transition: background 0.3s; }
+.admin-table tbody tr:hover { background: rgba(255,255,255,0.03); }
+
+/* Match Animation */
+.match-overlay { position: fixed; inset: 0; background: rgba(13,13,26,0.95); display: flex; align-items: center; justify-content: center; z-index: 10000; padding: 24px; }
+.match-content { text-align: center; animation: slideUp 0.6s ease-out; }
+.match-hearts { font-size: 6rem; margin-bottom: 32px; display: inline-block; }
+.match-title { font-family: 'Playfair Display', serif; font-size: 3.5rem; font-weight: 800; margin-bottom: 16px; background: linear-gradient(135deg, var(--primary-light), var(--accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.match-text { font-size: 1.375rem; color: var(--text-secondary); margin-bottom: 48px; }
+.match-avatars { display: flex; align-items: center; justify-content: center; gap: 40px; margin-bottom: 48px; }
+.match-avatar-item { text-align: center; }
+.match-avatar-name { margin-top: 12px; font-weight: 600; font-size: 1.125rem; }
+.match-heart { font-size: 4rem; }
+.match-buttons { display: flex; gap: 20px; justify-content: center; flex-wrap: wrap; }
+@media (max-width: 768px) { .match-hearts { font-size: 4rem; } .match-title { font-size: 2.5rem; } .match-avatars { gap: 24px; } .match-heart { font-size: 2.5rem; } }
+
+/* Pricing Card */
+.pricing-card { background: linear-gradient(135deg, var(--bg-card), var(--bg-card-light)); border: 2px solid var(--primary); border-radius: 32px; padding: 40px; text-align: center; position: relative; overflow: hidden; }
+.pricing-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: linear-gradient(90deg, var(--primary), var(--accent)); }
+.pricing-price { font-size: 4rem; font-weight: 800; background: linear-gradient(135deg, var(--primary-light), var(--accent)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.pricing-period { font-size: 1.25rem; color: var(--text-muted); }
+.pricing-features { margin: 32px 0; text-align: left; }
+.pricing-feature { display: flex; align-items: center; gap: 12px; padding: 12px 0; font-size: 1.1rem; }
+.pricing-feature-icon { color: var(--success); font-size: 1.25rem; }
+
+/* Blocked Overlay */
+.blocked-overlay {
+  position: fixed; inset: 0; z-index: 9998;
+  background: rgba(13,13,26,0.98);
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+}
+.blocked-content {
+  max-width: 500px; text-align: center;
+}
+.blocked-icon { font-size: 5rem; margin-bottom: 24px; }
+.blocked-title { font-size: 2rem; font-weight: 700; margin-bottom: 16px; color: var(--warning); }
+.blocked-text { font-size: 1.125rem; color: var(--text-secondary); margin-bottom: 32px; line-height: 1.7; }
+</style>
+</head>
+<body>
+
+<div id="loading-overlay" class="loading-overlay">
+  <div class="spinner"></div>
+  <p class="loading-text">Carregando...</p>
+</div>
+
+<div id="toast-container" class="toast-container"></div>
+
+<div id="app"></div>
+
+<script>
+// ============================================================
+// FIREBASE CONFIG
+// ============================================================
+const firebaseConfig = {
+  apiKey: "AIzaSyAxWa74Xa_Rz7t1c4xtvnibh5xI2vHKgGo",
+  authDomain: "meu-kwanza.firebaseapp.com",
+  projectId: "meu-kwanza",
+  storageBucket: "meu-kwanza.firebasestorage.app",
+  messagingSenderId: "878605435700",
+  appId: "1:878605435700:web:9a9e711f97332b4ff79b61"
+};
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+// ============================================================
+// STATE
+// ============================================================
+const STATE = {
+  currentUser: null,
+  userProfile: null,
+  currentPage: 'landing',
+  chatWith: null,
+  selectedProfile: null,
+  matchAnimation: null,
+  lightboxPhoto: null,
+  lightboxPhotos: [],
+  lightboxIndex: 0,
+  usersCache: [],
+  reportsCache: [],
+  settingsCache: null,
+  profileStep: 1,
+  selectedInterests: [],
+  uploadedPhotos: [],
+  profilePhoto: null,
+  showPhotoManager: false,
+  showEditProfile: false
+};
+
+const WHATSAPP_NUMBER = '929250600';
+
+// ============================================================
+// HELPERS
+// ============================================================
+function showToast(msg, type = 'info', duration = 5000) {
+  const c = document.getElementById('toast-container');
+  const t = document.createElement('div');
+  t.className = `toast toast-${type}`;
+  const icons = { success: '✓', error: '✕', warning: '⚠', info: 'ℹ' };
+  t.innerHTML = `<span class="toast-icon">${icons[type]}</span><span class="toast-message">${msg}</span><button class="toast-close" onclick="this.parentElement.remove()">×</button>`;
+  c.appendChild(t);
+  setTimeout(() => t.remove(), duration);
+}
+
+function showLoading(text = 'Carregando...') {
+  const o = document.getElementById('loading-overlay');
+  o.querySelector('.loading-text').textContent = text;
+  o.style.display = 'flex';
+}
+
+function hideLoading() {
+  document.getElementById('loading-overlay').style.display = 'none';
+}
+
+const Validate = {
+  email: (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e),
+  password: (p) => p.length >= 6,
+  username: (n) => n.trim().length >= 3,
+  age: (a) => { const n = parseInt(a); return n >= 18 && n <= 99; },
+  bio: (b) => b.trim().length >= 20 && b.trim().length <= 500,
+  passwordStrength(p) {
+    let s = 0;
+    if (p.length >= 6) s++;
+    if (p.length >= 8) s++;
+    if (/[A-Z]/.test(p)) s++;
+    if (/[0-9]/.test(p)) s++;
+    if (/[^A-Za-z0-9]/.test(p)) s++;
+    if (s <= 1) return { class: 'strength-weak', text: 'Fraca', color: 'var(--error)' };
+    if (s === 2) return { class: 'strength-fair', text: 'Razoável', color: 'var(--warning)' };
+    if (s === 3) return { class: 'strength-good', text: 'Boa', color: '#2196F3' };
+    return { class: 'strength-strong', text: 'Forte', color: 'var(--success)' };
+  },
+  sanitize: (s) => s ? s.replace(/<[^>]*>/g, '').trim() : ''
+};
+
+function handleError(e) {
+  const msgs = {
+    'auth/email-already-in-use': 'Este email já está em uso',
+    'auth/invalid-email': 'Email inválido',
+    'auth/weak-password': 'Senha muito fraca',
+    'auth/user-not-found': 'Usuário não encontrado',
+    'auth/wrong-password': 'Senha incorreta',
+    'auth/invalid-credential': 'Email ou senha incorretos',
+    'auth/too-many-requests': 'Muitas tentativas. Aguarde.'
+  };
+  showToast(msgs[e.code] || e.message, 'error');
+}
+
+function getInitials(n) { return n ? n.split(' ').map(x => x[0]).join('').substring(0,2).toUpperCase() : '?'; }
+function generateColor(s) {
+  const c = ['#E91E63','#9C27B0','#673AB7','#3F51B5','#2196F3','#00BCD4','#009688','#4CAF50','#FF5722','#795548'];
+  let h = 0; for (let i = 0; i < (s||'').length; i++) h = s.charCodeAt(i) + ((h << 5) - h);
+  return c[Math.abs(h) % c.length];
+}
+function timeAgo(ts) {
+  if (!ts) return '';
+  const t = ts.toDate ? ts.toDate().getTime() : ts;
+  const d = Date.now() - t;
+  if (d < 60000) return 'agora';
+  if (d < 3600000) return Math.floor(d/60000) + ' min';
+  if (d < 86400000) return Math.floor(d/3600000) + 'h';
+  return Math.floor(d/86400000) + 'd';
+}
+function formatDate(ts) {
+  if (!ts) return '-';
+  const d = ts.toDate ? ts.toDate() : new Date(ts);
+  return d.toLocaleDateString('pt-BR');
+}
+function formatCurrency(v) {
+  return new Intl.NumberFormat('pt-AO', { style: 'currency', currency: 'AOA' }).format(v || 0);
+}
+
+// ============================================================
+// FIRESTORE
+// ============================================================
+async function checkFirstUser() {
+  const s = await db.collection('users').limit(1).get();
+  return s.empty;
+}
+
+async function getUserProfile(uid) {
+  const d = await db.collection('users').doc(uid).get();
+  return d.exists ? { id: d.id, ...d.data() } : null;
+}
+
+async function createUserProfile(uid, data) {
+  await db.collection('users').doc(uid).set({
+    ...data,
+    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  });
+}
+
+async function updateUserProfile(uid, data) {
+  await db.collection('users').doc(uid).update({
+    ...data,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+  });
+}
+
+async function getAllUsers() {
+  const s = await db.collection('users').get();
+  return s.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+async function getReports() {
+  const s = await db.collection('reports').orderBy('date', 'desc').get();
+  return s.docs.map(d => ({ id: d.id, ...d.data() }));
+}
+
+async function getSettings() {
+  const d = await db.collection('settings').doc('app').get();
+  return d.exists ? d.data() : { billingActive: false, subscriptionPrice: 5000, subscriptionPeriod: 'monthly' };
+}
+
+async function updateSettings(data) {
+  await db.collection('settings').doc('app').set(data, { merge: true });
+}
+
+// ============================================================
+// PHOTO HANDLING
+// ============================================================
+function compressImage(file, maxWidth = 800, quality = 0.7) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let w = img.width, h = img.height;
+        if (w > maxWidth) { h = (maxWidth / w) * h; w = maxWidth; }
+        canvas.width = w; canvas.height = h;
+        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function handlePhotoUpload(inputId, index) {
+  const input = document.getElementById(inputId);
+  if (!input.files[0]) return;
+  
+  const file = input.files[0];
+  if (file.size > 5 * 1024 * 1024) {
+    showToast('Imagem muito grande. Máximo 5MB.', 'error');
+    return;
+  }
+  
+  showLoading('Processando foto...');
+  compressImage(file).then(base64 => {
+    if (index === 'profile') {
+      STATE.profilePhoto = base64;
+    } else {
+      STATE.uploadedPhotos[index] = base64;
+    }
+    hideLoading();
+    render();
+  });
+}
+
+// ============================================================
+// SUBSCRIPTION CHECK
+// ============================================================
+function isSubscriptionValid(user, settings) {
+  if (!settings?.billingActive) return true;
+  if (user?.isAdmin) return true;
+  if (!user?.subscriptionExpiry) return false;
+  const expiry = user.subscriptionExpiry.toDate ? user.subscriptionExpiry.toDate() : new Date(user.subscriptionExpiry);
+  return expiry > new Date();
+}
+
+function getDaysRemaining(user) {
+  if (!user?.subscriptionExpiry) return 0;
+  const expiry = user.subscriptionExpiry.toDate ? user.subscriptionExpiry.toDate() : new Date(user.subscriptionExpiry);
+  const days = Math.ceil((expiry - new Date()) / (1000 * 60 * 60 * 24));
+  return Math.max(0, days);
+}
+
+// ============================================================
+// COMPATIBILITY
+// ============================================================
+function calculateCompatibility(u1, u2) {
+  if (!u1 || !u2) return { score: 0, factors: [], shared: [] };
+  let score = 0; const factors = [];
+  const i1 = u1.interests || [], i2 = u2.interests || [];
+  const shared = i1.filter(i => i2.includes(i));
+  if (shared.length > 0) { score += (shared.length / Math.max(i1.length, i2.length, 1)) * 30; factors.push(`${shared.length} interesses em comum`); }
+  if (u1.city === u2.city) { score += 20; factors.push('Mesma cidade'); }
+  const ageDiff = Math.abs((u1.age||25) - (u2.age||25));
+  if (ageDiff <= 5) { score += 15; factors.push('Idade próxima'); } else if (ageDiff <= 10) score += 8;
+  if (u1.children === u2.children) { score += 10; factors.push('Mesmo sobre filhos'); }
+  if (u1.religion === u2.religion) { score += 8; factors.push('Mesma religião'); }
+  if (u1.smoke === u2.smoke) score += 4;
+  if (u1.drink === u2.drink) score += 4;
+  score += 6;
+  return { score: Math.min(Math.round(score), 99), factors, shared };
+}
+
+function getAISuggestions(user, all) {
+  if (!user) return [];
+  const target = user.gender === 'M' ? 'F' : 'M';
+  return all
+    .filter(u => u.id !== user.id && u.gender === target && u.active !== false && u.profileComplete && (u.photos?.length >= 5 || u.profilePhoto))
+    .map(u => ({ ...u, compat: calculateCompatibility(user, u) }))
+    .sort((a, b) => b.compat.score - a.compat.score);
+}
+
+// ============================================================
+// AVATAR
+// ============================================================
+function Avatar(user, size = 'md', showStatus = true) {
+  if (!user) return `<div class="avatar avatar-${size}" style="background:#666">?</div>`;
+  const color = user.avatarColor || generateColor(user.name || user.email);
+  const status = showStatus && user.online ? '<span class="avatar-status"></span>' : '';
+  const badge = user.verified ? '<span class="avatar-badge">✓</span>' : '';
+  const hasPhoto = user.profilePhoto;
+  
+  return `
+    <div class="avatar-wrapper">
+      <div class="avatar avatar-${size}" style="background:${color}">
+        ${hasPhoto ? `<img src="${user.profilePhoto}" alt="">` : getInitials(user.name || user.username)}
+      </div>
+      ${status}${badge}
+    </div>
+  `;
+}
+
+// ============================================================
+// WHATSAPP BUTTON
+// ============================================================
+function WhatsAppButton() {
+  if (!STATE.currentUser || STATE.userProfile?.isAdmin) return '';
+  
+  // Retrieve saved position or default
+  const saved = JSON.parse(localStorage.getItem('wa_pos') || 'null');
+  const posStyle = saved
+    ? `top:${saved.y}px;left:${saved.x}px;`
+    : `bottom:100px;right:24px;`;
+  const sideClass = saved && saved.x < window.innerWidth / 2 ? 'on-left' : 'on-right';
+  
+  return `
+    <div id="wa-btn" class="whatsapp-float ${sideClass}"
+         style="${posStyle}"
+         onmousedown="waDragStart(event)" ontouchstart="waDragStart(event)">
+      <span class="whatsapp-tooltip">💬 Fale connosco</span>
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+      </svg>
+    </div>
+  `;
+}
+
+// ============================================================
+// WHATSAPP DRAGGABLE LOGIC
+// ============================================================
+let waDrag = { active: false, startX: 0, startY: 0, origX: 0, origY: 0, moved: false };
+
+function waDragStart(e) {
+  const btn = document.getElementById('wa-btn');
+  if (!btn) return;
+  
+  e.preventDefault();
+  const touch = e.touches ? e.touches[0] : e;
+  const rect = btn.getBoundingClientRect();
+  
+  waDrag.active = true;
+  waDrag.moved = false;
+  waDrag.startX = touch.clientX;
+  waDrag.startY = touch.clientY;
+  waDrag.origX = rect.left;
+  waDrag.origY = rect.top;
+  
+  btn.classList.add('dragging');
+  btn.style.transition = 'none';
+  
+  document.addEventListener('mousemove', waDragMove);
+  document.addEventListener('mouseup', waDragEnd);
+  document.addEventListener('touchmove', waDragMove, { passive: false });
+  document.addEventListener('touchend', waDragEnd);
+}
+
+function waDragMove(e) {
+  if (!waDrag.active) return;
+  e.preventDefault();
+  
+  const touch = e.touches ? e.touches[0] : e;
+  const dx = touch.clientX - waDrag.startX;
+  const dy = touch.clientY - waDrag.startY;
+  
+  // Only count as drag if moved more than 5px
+  if (Math.abs(dx) > 5 || Math.abs(dy) > 5) waDrag.moved = true;
+  
+  const btn = document.getElementById('wa-btn');
+  if (!btn) return;
+  
+  const btnW = btn.offsetWidth;
+  const btnH = btn.offsetHeight;
+  
+  // Clamp within viewport
+  let newX = Math.max(8, Math.min(window.innerWidth - btnW - 8, waDrag.origX + dx));
+  let newY = Math.max(8, Math.min(window.innerHeight - btnH - 8, waDrag.origY + dy));
+  
+  btn.style.left = newX + 'px';
+  btn.style.top = newY + 'px';
+  btn.style.right = 'auto';
+  btn.style.bottom = 'auto';
+  
+  // Update tooltip side
+  if (newX < window.innerWidth / 2) {
+    btn.classList.add('on-left');
+    btn.classList.remove('on-right');
+  } else {
+    btn.classList.add('on-right');
+    btn.classList.remove('on-left');
+  }
+}
+
+function waDragEnd(e) {
+  if (!waDrag.active) return;
+  waDrag.active = false;
+  
+  const btn = document.getElementById('wa-btn');
+  if (!btn) return;
+  
+  btn.classList.remove('dragging');
+  
+  // Snap to nearest edge horizontally
+  const rect = btn.getBoundingClientRect();
+  const centerX = rect.left + rect.width / 2;
+  const snapRight = centerX > window.innerWidth / 2;
+  const finalX = snapRight ? window.innerWidth - btn.offsetWidth - 16 : 16;
+  let finalY = Math.max(16, Math.min(window.innerHeight - btn.offsetHeight - 16, rect.top));
+  
+  btn.style.transition = 'left 0.3s ease, top 0.3s ease, box-shadow 0.3s, transform 0.15s';
+  btn.style.left = finalX + 'px';
+  btn.style.top = finalY + 'px';
+  
+  // Update side class
+  if (!snapRight) {
+    btn.classList.add('on-left');
+    btn.classList.remove('on-right');
+  } else {
+    btn.classList.add('on-right');
+    btn.classList.remove('on-left');
+  }
+  
+  // Save position
+  localStorage.setItem('wa_pos', JSON.stringify({ x: finalX, y: finalY }));
+  
+  // If not dragged, open WhatsApp
+  if (!waDrag.moved) {
+    window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=Olá! Preciso de ajuda com minha conta no AmorReal.`, '_blank');
+  }
+  
+  document.removeEventListener('mousemove', waDragMove);
+  document.removeEventListener('mouseup', waDragEnd);
+  document.removeEventListener('touchmove', waDragMove);
+  document.removeEventListener('touchend', waDragEnd);
+}
+
+// ============================================================
+// RENDER
+// ============================================================
+function render() {
+  const app = document.getElementById('app');
+  
+  if (!STATE.currentUser) {
+    switch (STATE.currentPage) {
+      case 'register': app.innerHTML = renderRegister(); break;
+      case 'login': app.innerHTML = renderLogin(); break;
+      case 'forgot': app.innerHTML = renderForgot(); break;
+      default: app.innerHTML = renderLanding(); break;
+    }
+    return;
+  }
+  
+  if (!STATE.userProfile?.profileComplete) {
+    app.innerHTML = renderCompleteProfile();
+    return;
+  }
+  
+  // Check subscription
+  if (STATE.settingsCache?.billingActive && !isSubscriptionValid(STATE.userProfile, STATE.settingsCache)) {
+    app.innerHTML = renderBlockedPage();
+    return;
+  }
+  
+  if (STATE.userProfile.isAdmin && STATE.currentPage.startsWith('admin')) {
+    app.innerHTML = renderAdminPanel() + WhatsAppButton();
+    return;
+  }
+  
+  app.innerHTML = renderMainApp() + WhatsAppButton() + (STATE.lightboxPhoto ? renderLightbox() : '');
+}
+
+// ============================================================
+// LANDING
+// ============================================================
+function renderLanding() {
+  return `
+    <div class="hero">
+      <div class="hero-bg"></div>
+      <div class="hero-particles">
+        ${Array.from({length:20}).map((_,i) => `<div class="hero-particle" style="left:${Math.random()*100}%;top:${Math.random()*100}%;animation:float ${4+Math.random()*4}s ease-in-out infinite;animation-delay:${Math.random()*3}s">❤️</div>`).join('')}
+      </div>
+      <div class="hero-content">
+        <nav class="hero-nav">
+          <div class="hero-logo">
+            <span class="hero-logo-icon animate-pulse">❤️</span>
+            <span class="hero-logo-text">AmorReal</span>
+          </div>
+          <div class="hero-nav-buttons">
+            <button class="btn btn-secondary" onclick="goTo('login')">Entrar</button>
+            <button class="btn btn-primary" onclick="goTo('register')">Criar Conta</button>
+          </div>
+        </nav>
+        <div class="hero-main">
+          <div class="hero-text animate-fade">
+            <h1 class="hero-title">Encontre o <span class="hero-title-gradient">Amor Real</span></h1>
+            <p class="hero-description">Relacionamentos sérios começam com conexões verdadeiras. Nossa IA analisa sua personalidade e valores para encontrar pessoas realmente compatíveis.</p>
+            <div class="hero-buttons">
+              <button class="btn btn-primary btn-lg animate-glow" onclick="goTo('register')">❤️ Começar Agora — Grátis</button>
+              <button class="btn btn-secondary btn-lg" onclick="goTo('login')">Já tenho conta</button>
+            </div>
+            <div class="hero-stats">
+              <div class="hero-stat"><div class="hero-stat-value">50K+</div><div class="hero-stat-label">Usuários</div></div>
+              <div class="hero-stat"><div class="hero-stat-value">12K+</div><div class="hero-stat-label">Casais</div></div>
+              <div class="hero-stat"><div class="hero-stat-value">95%</div><div class="hero-stat-label">Satisfação</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ============================================================
+// REGISTER
+// ============================================================
+function renderRegister() {
+  return `
+    <div class="fullscreen-page" style="background:linear-gradient(135deg,var(--bg-dark),#1A1A3A)">
+      <div class="fullscreen-center">
+        <div class="auth-container animate-fade">
+          <div class="auth-header">
+            <span class="auth-logo animate-heartbeat">❤️</span>
+            <h1 class="auth-title">Criar Conta</h1>
+            <p class="auth-subtitle">Rápido e fácil</p>
+          </div>
+          <div class="auth-card">
+            <form onsubmit="handleRegister(event)">
+              <div class="form-group">
+                <label class="form-label">Nome de Usuário</label>
+                <input type="text" id="reg-username" class="form-input" placeholder="Como quer ser chamado?" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Email</label>
+                <input type="email" id="reg-email" class="form-input" placeholder="seu@email.com" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Senha</label>
+                <div class="input-wrapper">
+                  <input type="password" id="reg-password" class="form-input" placeholder="Mínimo 6 caracteres" required oninput="updatePwStrength()">
+                  <span class="input-icon" onclick="togglePw('reg-password',this)">👁️</span>
+                </div>
+                <div class="password-strength"><div id="pw-strength-fill" class="password-strength-fill"></div></div>
+                <div id="pw-strength-text" style="font-size:0.9rem;margin-top:8px"></div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Confirmar Senha</label>
+                <input type="password" id="reg-password2" class="form-input" placeholder="Repita a senha" required>
+              </div>
+              <button type="submit" class="btn btn-primary btn-full btn-lg">Criar Minha Conta</button>
+            </form>
+          </div>
+          <div class="auth-footer">Já tem conta? <a class="auth-link" onclick="goTo('login')">Entrar</a></div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ============================================================
+// LOGIN
+// ============================================================
+function renderLogin() {
+  return `
+    <div class="fullscreen-page" style="background:linear-gradient(135deg,var(--bg-dark),#1A1A3A)">
+      <div class="fullscreen-center">
+        <div class="auth-container animate-fade">
+          <div class="auth-header">
+            <span class="auth-logo animate-heartbeat">❤️</span>
+            <h1 class="auth-title">Bem-vindo de volta</h1>
+            <p class="auth-subtitle">Entre para encontrar seu amor</p>
+          </div>
+          <div class="auth-card">
+            <form onsubmit="handleLogin(event)">
+              <div class="form-group">
+                <label class="form-label">Email</label>
+                <input type="email" id="login-email" class="form-input" placeholder="seu@email.com" required>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Senha</label>
+                <div class="input-wrapper">
+                  <input type="password" id="login-password" class="form-input" placeholder="Sua senha" required>
+                  <span class="input-icon" onclick="togglePw('login-password',this)">👁️</span>
+                </div>
+              </div>
+              <div style="text-align:right;margin-bottom:24px">
+                <a class="auth-link" onclick="goTo('forgot')">Esqueceu a senha?</a>
+              </div>
+              <button type="submit" class="btn btn-primary btn-full btn-lg">Entrar</button>
+            </form>
+          </div>
+          <div class="auth-footer">Não tem conta? <a class="auth-link" onclick="goTo('register')">Criar conta</a></div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ============================================================
+// FORGOT
+// ============================================================
+function renderForgot() {
+  return `
+    <div class="fullscreen-page" style="background:linear-gradient(135deg,var(--bg-dark),#1A1A3A)">
+      <div class="fullscreen-center">
+        <div class="auth-container animate-fade">
+          <div class="auth-header">
+            <span class="auth-logo">🔑</span>
+            <h1 class="auth-title">Recuperar Senha</h1>
+          </div>
+          <div class="auth-card">
+            <form onsubmit="handleForgot(event)">
+              <div class="form-group">
+                <label class="form-label">Email</label>
+                <input type="email" id="forgot-email" class="form-input" placeholder="seu@email.com" required>
+              </div>
+              <button type="submit" class="btn btn-primary btn-full btn-lg">Enviar Link</button>
+            </form>
+          </div>
+          <div class="auth-footer"><a class="auth-link" onclick="goTo('login')">← Voltar</a></div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ============================================================
+// COMPLETE PROFILE
+// ============================================================
+function renderCompleteProfile() {
+  const step = STATE.profileStep;
+  return `
+    <div class="fullscreen-page" style="background:linear-gradient(135deg,var(--bg-dark),#1A1A3A)">
+      <div style="padding:24px;max-width:800px;margin:0 auto;width:100%">
+        <div class="auth-header" style="margin-bottom:32px">
+          <span class="auth-logo animate-heartbeat">❤️</span>
+          <h1 class="auth-title">Complete seu Perfil</h1>
+          <p class="auth-subtitle">Adicione suas fotos e informações</p>
+        </div>
+        
+        <div class="steps">
+          <div class="step ${step>=1?'active':''} ${step>1?'completed':''}"><div class="step-circle">${step>1?'✓':'1'}</div><span class="step-label">Fotos</span></div>
+          <div class="step-line ${step>1?'completed':''}"></div>
+          <div class="step ${step>=2?'active':''} ${step>2?'completed':''}"><div class="step-circle">${step>2?'✓':'2'}</div><span class="step-label">Dados</span></div>
+          <div class="step-line ${step>2?'completed':''}"></div>
+          <div class="step ${step>=3?'active':''} ${step>3?'completed':''}"><div class="step-circle">${step>3?'✓':'3'}</div><span class="step-label">Sobre</span></div>
+          <div class="step-line ${step>3?'completed':''}"></div>
+          <div class="step ${step>=4?'active':''}"><div class="step-circle">4</div><span class="step-label">Interesses</span></div>
+        </div>
+        
+        <div class="auth-card animate-fade">
+          ${step === 1 ? renderPhotoStep() : ''}
+          ${step === 2 ? renderDataStep() : ''}
+          ${step === 3 ? renderAboutStep() : ''}
+          ${step === 4 ? renderInterestsStep() : ''}
+        </div>
+        
+        <div style="text-align:center;margin-top:24px">
+          <button class="btn btn-secondary" onclick="handleLogout()">Sair da conta</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderPhotoStep() {
+  const photos = STATE.uploadedPhotos;
+  const profile = STATE.profilePhoto;
+  
+  return `
+    <h2 style="font-size:1.5rem;font-weight:700;margin-bottom:8px">📸 Suas Fotos</h2>
+    <p style="color:var(--text-secondary);margin-bottom:24px">Adicione sua foto de perfil e pelo menos 5 fotos para sua galeria</p>
+    
+    <div class="photo-upload-grid">
+      <!-- Main profile photo -->
+      <div class="photo-upload-item main-photo ${profile?'has-photo':''}" onclick="document.getElementById('photo-profile').click()">
+        ${profile ? `
+          <img src="${profile}" alt="Perfil">
+          <span class="photo-delete" onclick="event.stopPropagation();deletePhoto('profile')">×</span>
+        ` : `
+          <div class="photo-placeholder">
+            <div class="photo-placeholder-icon">📷</div>
+            <div class="photo-placeholder-text">Foto de Perfil<br><small>(Obrigatória)</small></div>
+          </div>
+        `}
+      </div>
+      <input type="file" id="photo-profile" accept="image/*" style="display:none" onchange="handlePhotoUpload('photo-profile','profile')">
+      
+      <!-- Gallery photos -->
+      ${[0,1,2,3,4,5].map(i => `
+        <div class="photo-upload-item ${photos[i]?'has-photo':''}" onclick="document.getElementById('photo-${i}').click()">
+          ${photos[i] ? `
+            <img src="${photos[i]}" alt="Foto ${i+1}">
+            <span class="photo-delete" onclick="event.stopPropagation();deletePhoto(${i})">×</span>
+          ` : `
+            <div class="photo-placeholder">
+              <div class="photo-placeholder-icon">+</div>
+              <div class="photo-placeholder-text">Foto ${i+1}</div>
+            </div>
+          `}
+        </div>
+        <input type="file" id="photo-${i}" accept="image/*" style="display:none" onchange="handlePhotoUpload('photo-${i}',${i})">
+      `).join('')}
+    </div>
+    
+    <div id="photo-error" class="form-error" style="display:none;margin-top:16px"></div>
+    
+    <p style="color:var(--text-muted);margin-top:16px;font-size:0.95rem">
+      ✓ Foto de perfil + mínimo 5 fotos na galeria<br>
+      ✓ Máximo 5MB por foto
+    </p>
+    
+    <button class="btn btn-primary btn-full btn-lg" style="margin-top:24px" onclick="nextStep()">Próximo →</button>
+  `;
+}
+
+function renderDataStep() {
+  return `
+    <h2 style="font-size:1.5rem;font-weight:700;margin-bottom:24px">📝 Dados Básicos</h2>
+    <div class="form-group">
+      <label class="form-label">Nome Completo *</label>
+      <input type="text" id="prof-name" class="form-input" placeholder="Seu nome completo" value="${STATE.userProfile?.name||STATE.userProfile?.username||''}">
+    </div>
+    <div class="grid grid-2" style="gap:16px">
+      <div class="form-group">
+        <label class="form-label">Idade *</label>
+        <input type="number" id="prof-age" class="form-input" placeholder="25" min="18" max="99" value="${STATE.userProfile?.age||''}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Gênero *</label>
+        <select id="prof-gender" class="form-input">
+          <option value="">Selecione</option>
+          <option value="M" ${STATE.userProfile?.gender==='M'?'selected':''}>Masculino</option>
+          <option value="F" ${STATE.userProfile?.gender==='F'?'selected':''}>Feminino</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Cidade *</label>
+      <input type="text" id="prof-city" class="form-input" placeholder="Onde você mora?" value="${STATE.userProfile?.city||''}">
+    </div>
+    <div id="data-error" class="form-error" style="display:none"></div>
+    <div style="display:flex;gap:16px;margin-top:24px">
+      <button class="btn btn-secondary btn-lg" style="flex:1" onclick="prevStep()">← Voltar</button>
+      <button class="btn btn-primary btn-lg" style="flex:1" onclick="nextStep()">Próximo →</button>
+    </div>
+  `;
+}
+
+function renderAboutStep() {
+  return `
+    <h2 style="font-size:1.5rem;font-weight:700;margin-bottom:24px">💭 Sobre Você</h2>
+    <div class="form-group">
+      <label class="form-label">Bio / Descrição * (20-500 caracteres)</label>
+      <textarea id="prof-bio" class="form-input" placeholder="Conte sobre você, seus sonhos, o que busca...">${STATE.userProfile?.bio||''}</textarea>
+      <div class="form-hint" id="bio-counter">0/500</div>
+    </div>
+    <div class="grid grid-2" style="gap:16px">
+      <div class="form-group">
+        <label class="form-label">Profissão</label>
+        <input type="text" id="prof-job" class="form-input" placeholder="O que você faz?" value="${STATE.userProfile?.job||''}">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Altura (cm)</label>
+        <input type="number" id="prof-height" class="form-input" placeholder="170" value="${STATE.userProfile?.height||''}">
+      </div>
+    </div>
+    <div class="grid grid-2" style="gap:16px">
+      <div class="form-group">
+        <label class="form-label">Escolaridade</label>
+        <select id="prof-education" class="form-input">
+          <option value="Ensino Médio">Ensino Médio</option>
+          <option value="Superior Incompleto">Superior Incompleto</option>
+          <option value="Superior Completo" selected>Superior Completo</option>
+          <option value="Pós-graduação">Pós-graduação</option>
+          <option value="Mestrado">Mestrado</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Religião</label>
+        <select id="prof-religion" class="form-input">
+          <option value="Católica">Católica</option>
+          <option value="Evangélica">Evangélica</option>
+          <option value="Espírita">Espírita</option>
+          <option value="Outra">Outra</option>
+          <option value="Nenhuma">Nenhuma</option>
+        </select>
+      </div>
+    </div>
+    <div class="grid grid-2" style="gap:16px">
+      <div class="form-group">
+        <label class="form-label">Fuma?</label>
+        <select id="prof-smoke" class="form-input">
+          <option value="Não">Não</option>
+          <option value="Sim">Sim</option>
+          <option value="Às vezes">Às vezes</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Bebe?</label>
+        <select id="prof-drink" class="form-input">
+          <option value="Não">Não</option>
+          <option value="Socialmente" selected>Socialmente</option>
+          <option value="Sim">Sim</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Filhos</label>
+      <select id="prof-children" class="form-input">
+        <option value="Não tem, mas quer">Não tem, mas quer</option>
+        <option value="Não tem, não quer">Não tem, não quer</option>
+        <option value="Tem filhos">Tem filhos</option>
+      </select>
+    </div>
+    <div id="about-error" class="form-error" style="display:none"></div>
+    <div style="display:flex;gap:16px;margin-top:24px">
+      <button class="btn btn-secondary btn-lg" style="flex:1" onclick="prevStep()">← Voltar</button>
+      <button class="btn btn-primary btn-lg" style="flex:1" onclick="nextStep()">Próximo →</button>
+    </div>
+  `;
+}
+
+function renderInterestsStep() {
+  const interests = ['Viagens','Música','Cinema','Leitura','Esportes','Gastronomia','Natureza','Fotografia','Dança','Yoga','Meditação','Games','Tecnologia','Arte','Animais','Praia','Trilhas','Culinária','Séries','Teatro'];
+  return `
+    <h2 style="font-size:1.5rem;font-weight:700;margin-bottom:8px">❤️ Seus Interesses</h2>
+    <p style="color:var(--text-secondary);margin-bottom:24px">Selecione pelo menos 3 interesses</p>
+    <div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:24px">
+      ${interests.map(i => `<button type="button" class="interest-tag ${STATE.selectedInterests.includes(i)?'selected':''}" onclick="toggleInterest('${i}',this)">${i}</button>`).join('')}
+    </div>
+    <p style="color:var(--text-muted);margin-bottom:16px">Selecionados: <strong id="interest-count">${STATE.selectedInterests.length}</strong> / mínimo 3</p>
+    <div id="interests-error" class="form-error" style="display:none"></div>
+    <div class="form-group">
+      <label class="form-label">O que você procura?</label>
+      <select id="prof-looking" class="form-input">
+        <option value="Relacionamento sério">Relacionamento sério</option>
+        <option value="Casamento">Casamento</option>
+        <option value="Conhecer pessoas">Conhecer pessoas</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:16px;margin-top:24px">
+      <button class="btn btn-secondary btn-lg" style="flex:1" onclick="prevStep()">← Voltar</button>
+      <button class="btn btn-primary btn-lg" style="flex:1" onclick="finishProfile()">✓ Finalizar</button>
+    </div>
+  `;
+}
+
+// ============================================================
+// BLOCKED PAGE
+// ============================================================
+function renderBlockedPage() {
+  const settings = STATE.settingsCache;
+  return `
+    <div class="blocked-overlay">
+      <div class="blocked-content animate-fade">
+        <div class="blocked-icon">⏰</div>
+        <h1 class="blocked-title">Subscrição Expirada</h1>
+        <p class="blocked-text">
+          Sua subscrição expirou. Para continuar usando o AmorReal, 
+          entre em contacto pelo WhatsApp para efectuar o pagamento.
+        </p>
+        <div class="pricing-card" style="margin-bottom:32px">
+          <div class="pricing-price">${formatCurrency(settings?.subscriptionPrice || 5000)}</div>
+          <div class="pricing-period">por ${settings?.subscriptionPeriod === 'yearly' ? 'ano' : 'mês'}</div>
+          <div class="pricing-features">
+            <div class="pricing-feature"><span class="pricing-feature-icon">✓</span> Acesso ilimitado</div>
+            <div class="pricing-feature"><span class="pricing-feature-icon">✓</span> Ver todos os perfis</div>
+            <div class="pricing-feature"><span class="pricing-feature-icon">✓</span> Mensagens ilimitadas</div>
+            <div class="pricing-feature"><span class="pricing-feature-icon">✓</span> Sugestões da IA</div>
+          </div>
+        </div>
+        <a href="https://wa.me/${WHATSAPP_NUMBER}?text=Olá! Quero renovar minha subscrição no AmorReal. Meu email: ${STATE.userProfile?.email}" 
+           target="_blank" class="btn btn-whatsapp btn-lg btn-full" style="margin-bottom:16px">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+          Pagar via WhatsApp
+        </a>
+        <button class="btn btn-secondary btn-full" onclick="handleLogout()">Sair da conta</button>
+      </div>
+    </div>
+  `;
+}
+
+// ============================================================
+// MAIN APP
+// ============================================================
+function renderMainApp() {
+  const user = STATE.userProfile;
+  const settings = STATE.settingsCache;
+  const daysLeft = getDaysRemaining(user);
+  
+  return `
+    <div class="app-layout">
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <div style="display:flex;align-items:center;gap:12px">
+            <span style="font-size:2rem" class="animate-pulse">❤️</span>
+            <span style="font-family:'Playfair Display',serif;font-size:1.5rem;font-weight:700;color:var(--primary-light)">AmorReal</span>
+          </div>
+        </div>
+        <div style="padding:20px;border-bottom:1px solid rgba(255,255,255,0.08)">
+          <div style="display:flex;align-items:center;gap:16px">
+            ${Avatar(user, 'md')}
+            <div style="flex:1;min-width:0">
+              <div style="font-weight:600;font-size:1.125rem;overflow:hidden;text-overflow:ellipsis">${user.name}</div>
+              <div style="font-size:0.9rem;color:var(--online);display:flex;align-items:center;gap:6px">
+                <span style="width:8px;height:8px;background:var(--online);border-radius:50%"></span> Online
+              </div>
+            </div>
+            ${user.isAdmin ? '<span class="badge badge-primary">Admin</span>' : ''}
+          </div>
+          ${settings?.billingActive && !user.isAdmin ? `
+            <div style="margin-top:12px;padding:10px;background:${daysLeft > 7 ? 'rgba(76,175,80,0.2)' : 'rgba(255,152,0,0.2)'};border-radius:10px;font-size:0.9rem">
+              ${daysLeft > 0 ? `⏰ ${daysLeft} dias restantes` : '⚠️ Subscrição expirada'}
+            </div>
+          ` : ''}
+        </div>
+        <nav class="sidebar-nav">
+          <div class="nav-item ${STATE.currentPage==='discover'?'active':''}" onclick="setPage('discover')"><span class="nav-icon">🔍</span> Descobrir</div>
+          <div class="nav-item ${STATE.currentPage==='suggestions'?'active':''}" onclick="setPage('suggestions')"><span class="nav-icon">🤖</span> Sugestões IA</div>
+          <div class="nav-item ${STATE.currentPage==='matches'?'active':''}" onclick="setPage('matches')"><span class="nav-icon">💕</span> Matches</div>
+          <div class="nav-item ${STATE.currentPage==='chat'?'active':''}" onclick="setPage('chat')"><span class="nav-icon">💬</span> Mensagens</div>
+          <div class="nav-item ${STATE.currentPage==='likes'?'active':''}" onclick="setPage('likes')"><span class="nav-icon">❤️</span> Curtidas</div>
+          <div class="nav-item ${STATE.currentPage==='profile'?'active':''}" onclick="setPage('profile')"><span class="nav-icon">👤</span> Meu Perfil</div>
+          <div class="nav-item ${STATE.currentPage==='settings'?'active':''}" onclick="setPage('settings')"><span class="nav-icon">⚙️</span> Configurações</div>
+          ${user.isAdmin ? `<div style="border-top:1px solid rgba(255,255,255,0.08);margin:16px 0"></div><div class="nav-item ${STATE.currentPage.startsWith('admin')?'active':''}" onclick="setPage('admin-dashboard')"><span class="nav-icon">🔐</span> Painel Admin</div>` : ''}
+        </nav>
+        <div class="sidebar-footer">
+          <div class="nav-item" style="color:var(--error)" onclick="handleLogout()"><span class="nav-icon">🚪</span> Sair</div>
+        </div>
+      </aside>
+      
+      <div class="mobile-nav">
+        <div class="mobile-nav-items">
+          <div class="mobile-nav-item ${STATE.currentPage==='discover'?'active':''}" onclick="setPage('discover')"><span class="mobile-nav-icon">🔍</span><span>Descobrir</span></div>
+          <div class="mobile-nav-item ${STATE.currentPage==='suggestions'?'active':''}" onclick="setPage('suggestions')"><span class="mobile-nav-icon">🤖</span><span>IA</span></div>
+          <div class="mobile-nav-item ${STATE.currentPage==='matches'?'active':''}" onclick="setPage('matches')"><span class="mobile-nav-icon">💕</span><span>Matches</span></div>
+          <div class="mobile-nav-item ${STATE.currentPage==='chat'?'active':''}" onclick="setPage('chat')"><span class="mobile-nav-icon">💬</span><span>Chat</span></div>
+          <div class="mobile-nav-item ${STATE.currentPage==='profile'?'active':''}" onclick="setPage('profile')"><span class="mobile-nav-icon">👤</span><span>Perfil</span></div>
+        </div>
+      </div>
+      
+      <main class="main-content">${renderCurrentPage()}</main>
+    </div>
+    ${STATE.selectedProfile ? renderProfileModal() : ''}
+    ${STATE.matchAnimation ? renderMatchAnimation() : ''}
+    ${STATE.showPhotoManager ? renderPhotoManager() : ''}
+    ${STATE.showEditProfile ? renderEditProfileModal() : ''}
+  `;
+}
+
+function renderCurrentPage() {
+  switch (STATE.currentPage) {
+    case 'discover': return renderDiscoverPage();
+    case 'suggestions': return renderSuggestionsPage();
+    case 'matches': return renderMatchesPage();
+    case 'chat': return renderChatPage();
+    case 'likes': return renderLikesPage();
+    case 'profile': return renderProfilePage();
+    case 'settings': return renderSettingsPage();
+    default: return renderDiscoverPage();
+  }
+}
+
+// ============================================================
+// DISCOVER PAGE
+// ============================================================
+function renderDiscoverPage() {
+  const user = STATE.userProfile;
+  const target = user.gender === 'M' ? 'F' : 'M';
+  const users = STATE.usersCache.filter(u => u.id !== user.id && u.gender === target && u.active !== false && u.profileComplete);
+  
+  return `
+    <div class="page-content">
+      <div class="page-header">
+        <h1 class="page-title">🔍 Descobrir Pessoas</h1>
+        <p class="page-subtitle">Encontre alguém especial</p>
+      </div>
+      ${users.length === 0 ? `
+        <div class="empty-state">
+          <span class="empty-state-icon animate-float">😔</span>
+          <h3 class="empty-state-title">Nenhum perfil encontrado</h3>
+          <p class="empty-state-text">Volte mais tarde</p>
+        </div>
+      ` : `
+        <div class="grid grid-4">
+          ${users.map(u => {
+            const compat = calculateCompatibility(user, u);
+            const liked = (user.likes||[]).includes(u.id);
+            return `
+              <div class="profile-card" onclick="viewProfile('${u.id}')">
+                <div class="profile-card-header" style="background:linear-gradient(135deg,${u.avatarColor||generateColor(u.name)}44,${u.avatarColor||generateColor(u.name)}22)">
+                  ${u.profilePhoto ? `<img src="${u.profilePhoto}" alt="">` : `<div class="no-photo">${Avatar(u, 'xl', false)}</div>`}
+                  ${u.online ? '<span class="badge badge-success" style="position:absolute;top:16px;right:16px">Online</span>' : ''}
+                  <div style="position:absolute;bottom:16px;right:16px;background:rgba(0,0,0,0.7);padding:8px 16px;border-radius:50px">
+                    <span style="color:var(--primary-light);font-weight:700">${compat.score}%</span>
+                  </div>
+                  ${(u.photos||[]).length > 0 ? `<div style="position:absolute;bottom:16px;left:16px;background:rgba(0,0,0,0.7);padding:6px 12px;border-radius:50px;font-size:0.875rem">📷 ${u.photos.length}</div>` : ''}
+                </div>
+                <div class="profile-card-body">
+                  <div class="profile-card-name">${u.name}, ${u.age}</div>
+                  <div class="profile-card-info">📍 ${u.city}</div>
+                  <div class="profile-card-bio">${u.bio || ''}</div>
+                  <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px">
+                    ${(u.interests||[]).slice(0,3).map(i => `<span class="badge badge-info">${i}</span>`).join('')}
+                  </div>
+                  <div class="compat-bar" style="margin-bottom:16px"><div class="compat-fill" style="width:${compat.score}%"></div></div>
+                  <div style="display:flex;gap:12px">
+                    <button class="btn ${liked?'btn-primary':'btn-outline'} btn-sm" style="flex:1" onclick="event.stopPropagation();likeUser('${u.id}')">${liked?'❤️ Curtido':'🤍 Curtir'}</button>
+                    <button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();startChat('${u.id}')">💬</button>
+                  </div>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `}
+    </div>
+  `;
+}
+
+// ============================================================
+// SUGGESTIONS PAGE
+// ============================================================
+function renderSuggestionsPage() {
+  const user = STATE.userProfile;
+  const suggestions = getAISuggestions(user, STATE.usersCache);
+  
+  return `
+    <div class="page-content">
+      <div class="page-header" style="text-align:center">
+        <span class="badge badge-primary" style="font-size:1rem;padding:10px 20px;margin-bottom:16px">🤖 Inteligência Artificial</span>
+        <h1 class="page-title">Sugestões para Você</h1>
+        <p class="page-subtitle">Perfis mais compatíveis</p>
+      </div>
+      ${suggestions.length === 0 ? `
+        <div class="empty-state">
+          <span class="empty-state-icon animate-float">🔍</span>
+          <h3 class="empty-state-title">Nenhuma sugestão</h3>
+          <p class="empty-state-text">Volte mais tarde</p>
+        </div>
+      ` : `
+        <div style="display:flex;flex-direction:column;gap:24px;max-width:900px;margin:0 auto">
+          ${suggestions.slice(0,10).map((u, i) => `
+            <div class="card" style="cursor:pointer" onclick="viewProfile('${u.id}')">
+              <div class="card-body" style="display:flex;gap:24px;align-items:center;flex-wrap:wrap">
+                <div style="position:relative">
+                  ${u.profilePhoto ? `<div class="avatar avatar-lg"><img src="${u.profilePhoto}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%"></div>` : Avatar(u, 'lg', true)}
+                  ${i < 3 ? `<span style="position:absolute;top:-8px;left:-8px;font-size:1.5rem">${['🥇','🥈','🥉'][i]}</span>` : ''}
+                </div>
+                <div style="flex:1;min-width:200px">
+                  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:8px">
+                    <h3 style="font-size:1.375rem;font-weight:700">${u.name}, ${u.age}</h3>
+                    ${u.verified ? '<span class="badge badge-info">✓</span>' : ''}
+                    ${u.online ? '<span class="badge badge-success">Online</span>' : ''}
+                  </div>
+                  <p style="color:var(--text-muted);margin-bottom:8px">📍 ${u.city} · 📷 ${(u.photos||[]).length} fotos</p>
+                  <p style="color:var(--text-secondary);margin-bottom:12px">${u.bio || ''}</p>
+                  <div style="display:flex;flex-wrap:wrap;gap:8px">${u.compat.factors.slice(0,3).map(f => `<span class="badge badge-success">✓ ${f}</span>`).join('')}</div>
+                </div>
+                <div style="text-align:center;min-width:100px">
+                  <div style="width:80px;height:80px;border-radius:50%;border:4px solid ${u.compat.score>=70?'var(--success)':u.compat.score>=50?'var(--warning)':'var(--primary)'};display:flex;align-items:center;justify-content:center;margin:0 auto 12px">
+                    <span style="font-size:1.5rem;font-weight:800">${u.compat.score}%</span>
+                  </div>
+                  <button class="btn btn-primary btn-sm" onclick="event.stopPropagation();likeUser('${u.id}')">${(user.likes||[]).includes(u.id)?'❤️':'🤍'} Curtir</button>
+                </div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `}
+    </div>
+  `;
+}
+
+// ============================================================
+// MATCHES PAGE
+// ============================================================
+function renderMatchesPage() {
+  const user = STATE.userProfile;
+  const matches = STATE.usersCache.filter(u => (user.matches||[]).includes(u.id));
+  
+  return `
+    <div class="page-content">
+      <div class="page-header" style="text-align:center">
+        <h1 class="page-title">💕 Seus Matches</h1>
+        <p class="page-subtitle">Pessoas que também curtiram você</p>
+      </div>
+      ${matches.length === 0 ? `
+        <div class="empty-state">
+          <span class="empty-state-icon animate-float">💕</span>
+          <h3 class="empty-state-title">Nenhum match ainda</h3>
+          <p class="empty-state-text">Continue curtindo!</p>
+          <button class="btn btn-primary" onclick="setPage('discover')">🔍 Descobrir</button>
+        </div>
+      ` : `
+        <div class="grid grid-3">
+          ${matches.map(u => {
+            const compat = calculateCompatibility(user, u);
+            return `
+              <div class="card" style="text-align:center;cursor:pointer" onclick="viewProfile('${u.id}')">
+                <div class="card-body" style="padding:32px">
+                  <div style="position:relative;display:inline-block;margin-bottom:20px">
+                    ${u.profilePhoto ? `<div class="avatar avatar-xl"><img src="${u.profilePhoto}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%"></div>` : Avatar(u, 'xl', true)}
+                    <span style="position:absolute;bottom:-5px;left:50%;transform:translateX(-50%);font-size:2rem">💕</span>
+                  </div>
+                  <h3 style="font-size:1.375rem;font-weight:700;margin-bottom:4px">${u.name}, ${u.age}</h3>
+                  <p style="color:var(--text-muted);margin-bottom:16px">📍 ${u.city}</p>
+                  <div class="compat-bar" style="margin-bottom:12px"><div class="compat-fill" style="width:${compat.score}%"></div></div>
+                  <p style="color:var(--primary-light);font-weight:600;margin-bottom:20px">${compat.score}%</p>
+                  <button class="btn btn-primary btn-full" onclick="event.stopPropagation();startChat('${u.id}')">💬 Conversar</button>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `}
+    </div>
+  `;
+}
+
+// ============================================================
+// CHAT PAGE
+// ============================================================
+function renderChatPage() {
+  const user = STATE.userProfile;
+  const matches = STATE.usersCache.filter(u => (user.matches||[]).includes(u.id));
+  
+  return `
+    <div class="page-content">
+      <div class="page-header">
+        <h1 class="page-title">💬 Mensagens</h1>
+      </div>
+      ${matches.length === 0 ? `
+        <div class="empty-state">
+          <span class="empty-state-icon animate-float">💬</span>
+          <h3 class="empty-state-title">Nenhuma conversa</h3>
+          <p class="empty-state-text">Faça matches para conversar!</p>
+          <button class="btn btn-primary" onclick="setPage('discover')">🔍 Descobrir</button>
+        </div>
+      ` : `
+        <div style="max-width:600px">
+          ${matches.map(u => `
+            <div class="card" style="margin-bottom:16px;cursor:pointer" onclick="startChat('${u.id}')">
+              <div class="card-body" style="display:flex;align-items:center;gap:20px">
+                ${u.profilePhoto ? `<div class="avatar avatar-md"><img src="${u.profilePhoto}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%"></div>` : Avatar(u, 'md', true)}
+                <div style="flex:1">
+                  <h3 style="font-size:1.125rem;font-weight:600">${u.name}</h3>
+                  <p style="color:var(--text-muted)">Clique para conversar</p>
+                </div>
+                ${u.online ? '<span class="badge badge-success">Online</span>' : ''}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `}
+    </div>
+  `;
+}
+
+// ============================================================
+// LIKES PAGE
+// ============================================================
+function renderLikesPage() {
+  const user = STATE.userProfile;
+  const likedMe = STATE.usersCache.filter(u => (u.likes||[]).includes(user.id));
+  const likedByMe = STATE.usersCache.filter(u => (user.likes||[]).includes(u.id));
+  
+  return `
+    <div class="page-content">
+      <div class="page-header">
+        <h1 class="page-title">❤️ Curtidas</h1>
+      </div>
+      <div style="display:flex;gap:12px;margin-bottom:32px">
+        <button class="btn btn-primary" id="tab-received" onclick="switchLikeTab('received')">Recebidas (${likedMe.length})</button>
+        <button class="btn btn-secondary" id="tab-sent" onclick="switchLikeTab('sent')">Enviadas (${likedByMe.length})</button>
+      </div>
+      <div id="likes-received">
+        ${likedMe.length === 0 ? '<p style="color:var(--text-muted);text-align:center;padding:40px">Ninguém curtiu ainda</p>' : `
+          <div class="grid grid-4">
+            ${likedMe.map(u => `
+              <div class="card" style="text-align:center;cursor:pointer" onclick="viewProfile('${u.id}')">
+                <div class="card-body">
+                  ${u.profilePhoto ? `<div class="avatar avatar-lg" style="margin:0 auto"><img src="${u.profilePhoto}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%"></div>` : Avatar(u, 'lg', true)}
+                  <h3 style="font-size:1.125rem;font-weight:600;margin-top:16px">${u.name}, ${u.age}</h3>
+                  <p style="color:var(--text-muted);margin-bottom:16px">📍 ${u.city}</p>
+                  <button class="btn ${(user.likes||[]).includes(u.id)?'btn-primary':'btn-outline'} btn-full btn-sm" onclick="event.stopPropagation();likeUser('${u.id}')">${(user.likes||[]).includes(u.id)?'💕 Match!':'❤️ Curtir'}</button>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        `}
+      </div>
+      <div id="likes-sent" style="display:none">
+        ${likedByMe.length === 0 ? '<p style="color:var(--text-muted);text-align:center;padding:40px">Você não curtiu ninguém</p>' : `
+          <div class="grid grid-4">
+            ${likedByMe.map(u => `
+              <div class="card" style="text-align:center;cursor:pointer" onclick="viewProfile('${u.id}')">
+                <div class="card-body">
+                  ${u.profilePhoto ? `<div class="avatar avatar-lg" style="margin:0 auto"><img src="${u.profilePhoto}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%"></div>` : Avatar(u, 'lg', true)}
+                  <h3 style="font-size:1.125rem;font-weight:600;margin-top:16px">${u.name}, ${u.age}</h3>
+                  <p style="color:var(--text-muted)">📍 ${u.city}</p>
+                  <span class="badge badge-primary" style="margin-top:12px">❤️ Curtido</span>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        `}
+      </div>
+    </div>
+  `;
+}
+
+// ============================================================
+// PROFILE PAGE
+// ============================================================
+function renderProfilePage() {
+  const user = STATE.userProfile;
+  const photos = user.photos || [];
+  const photoCount = photos.length;
+  const needsMorePhotos = photoCount < 8;
+  
+  return `
+    <div class="page-content">
+      <div class="page-header">
+        <h1 class="page-title">👤 Meu Perfil</h1>
+        <p class="page-subtitle">Gerencie suas informações e fotos</p>
+      </div>
+      
+      <!-- Visibility Alert -->
+      ${needsMorePhotos ? `
+        <div class="card" style="background:linear-gradient(135deg,rgba(255,152,0,0.2),rgba(255,193,7,0.1));border:2px solid rgba(255,152,0,0.3);margin-bottom:24px;max-width:900px">
+          <div class="card-body" style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+            <div style="font-size:3rem">📸</div>
+            <div style="flex:1;min-width:200px">
+              <h3 style="font-size:1.25rem;font-weight:700;color:var(--warning);margin-bottom:4px">Adicione mais fotos!</h3>
+              <p style="color:var(--text-secondary)">Perfis com mais fotos recebem <strong>3x mais visualizações</strong>. Você tem ${photoCount} foto${photoCount !== 1 ? 's' : ''}, adicione mais para aumentar suas chances!</p>
+            </div>
+            <button class="btn btn-warning" onclick="openPhotoManager()">
+              📷 Adicionar Fotos
+            </button>
+          </div>
+        </div>
+      ` : ''}
+      
+      <div class="card" style="max-width:900px;margin-bottom:24px">
+        <div style="height:200px;background:linear-gradient(135deg,${user.avatarColor||generateColor(user.name)}88,${user.avatarColor||generateColor(user.name)}44);position:relative">
+          <!-- Edit Profile Photo Button -->
+          <div style="position:absolute;bottom:-60px;left:32px">
+            <div style="position:relative;cursor:pointer" onclick="document.getElementById('edit-profile-photo').click()">
+              ${user.profilePhoto ? `
+                <div class="avatar avatar-xl" style="border:4px solid var(--bg-card)">
+                  <img src="${user.profilePhoto}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">
+                </div>
+              ` : Avatar(user, 'xl', false)}
+              <div style="position:absolute;bottom:0;right:0;width:36px;height:36px;background:var(--primary);border-radius:50%;display:flex;align-items:center;justify-content:center;border:3px solid var(--bg-card);font-size:1rem">📷</div>
+            </div>
+            <input type="file" id="edit-profile-photo" accept="image/*" style="display:none" onchange="updateProfilePhoto(this)">
+          </div>
+          
+          <!-- Edit Photos Button -->
+          <button class="btn btn-secondary btn-sm" style="position:absolute;top:16px;right:16px" onclick="openPhotoManager()">
+            📷 Editar Fotos
+          </button>
+        </div>
+        
+        <div class="card-body" style="padding-top:80px">
+          <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:8px">
+            <h2 style="font-size:1.75rem;font-weight:700">${user.name}, ${user.age}</h2>
+            ${user.verified ? '<span class="badge badge-info">✓ Verificado</span>' : ''}
+            ${user.isAdmin ? '<span class="badge badge-primary">👑 Admin</span>' : ''}
+          </div>
+          <p style="color:var(--text-muted);margin-bottom:20px">📍 ${user.city} · 💼 ${user.job || '-'}</p>
+          <p style="color:var(--text-secondary);margin-bottom:24px;line-height:1.7">${user.bio}</p>
+          
+          <!-- Photo Gallery Section -->
+          <div style="margin-bottom:24px">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+              <h3 style="font-size:1.25rem;font-weight:700">📸 Minhas Fotos (${photoCount})</h3>
+              <button class="btn btn-outline btn-sm" onclick="openPhotoManager()">+ Adicionar</button>
+            </div>
+            
+            ${photos.length > 0 ? `
+              <div class="photo-gallery">
+                ${photos.map((p, i) => `
+                  <div class="photo-gallery-item ${i === 0 ? 'main' : ''}" onclick="openLightbox(${i}, ${JSON.stringify(photos).replace(/"/g, '&quot;')})">
+                    <img src="${p}" alt="Foto ${i+1}">
+                  </div>
+                `).join('')}
+              </div>
+            ` : `
+              <div style="text-align:center;padding:40px;background:var(--bg-card-light);border-radius:16px;border:2px dashed rgba(255,255,255,0.2)">
+                <div style="font-size:3rem;margin-bottom:16px">📷</div>
+                <p style="color:var(--text-muted);margin-bottom:16px">Você ainda não tem fotos na galeria</p>
+                <button class="btn btn-primary" onclick="openPhotoManager()">Adicionar Fotos</button>
+              </div>
+            `}
+          </div>
+          
+          <div class="grid grid-4" style="margin-bottom:24px">
+            <div class="card" style="text-align:center;background:var(--bg-card-light)"><div class="card-body" style="padding:16px"><div style="color:var(--text-muted);font-size:0.9rem">Altura</div><div style="font-weight:600">${user.height || '-'} cm</div></div></div>
+            <div class="card" style="text-align:center;background:var(--bg-card-light)"><div class="card-body" style="padding:16px"><div style="color:var(--text-muted);font-size:0.9rem">Escolaridade</div><div style="font-weight:600;font-size:0.95rem">${user.education || '-'}</div></div></div>
+            <div class="card" style="text-align:center;background:var(--bg-card-light)"><div class="card-body" style="padding:16px"><div style="color:var(--text-muted);font-size:0.9rem">Filhos</div><div style="font-weight:600;font-size:0.9rem">${user.children || '-'}</div></div></div>
+            <div class="card" style="text-align:center;background:var(--bg-card-light)"><div class="card-body" style="padding:16px"><div style="color:var(--text-muted);font-size:0.9rem">Religião</div><div style="font-weight:600">${user.religion || '-'}</div></div></div>
+          </div>
+          
+          <div style="margin-bottom:24px">
+            <h3 style="color:var(--text-muted);font-size:1rem;margin-bottom:12px">Interesses</h3>
+            <div style="display:flex;flex-wrap:wrap;gap:10px">${(user.interests||[]).map(i => `<span class="badge badge-primary">${i}</span>`).join('')}</div>
+          </div>
+          
+          <button class="btn btn-outline btn-full" onclick="openEditProfile()">✏️ Editar Informações do Perfil</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// Photo Manager Modal
+function renderPhotoManager() {
+  const user = STATE.userProfile;
+  const photos = user.photos || [];
+  
+  return `
+    <div class="modal-overlay" onclick="closePhotoManager()">
+      <div class="modal-content" style="max-width:800px" onclick="event.stopPropagation()">
+        <div style="padding:32px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">
+            <h2 style="font-size:1.5rem;font-weight:700">📸 Gerenciar Fotos</h2>
+            <button class="btn btn-secondary btn-sm" onclick="closePhotoManager()">✕ Fechar</button>
+          </div>
+          
+          <div style="background:linear-gradient(135deg,rgba(233,30,99,0.1),rgba(156,39,176,0.1));border-radius:16px;padding:20px;margin-bottom:24px;border:1px solid rgba(233,30,99,0.2)">
+            <p style="color:var(--text-secondary);font-size:1rem">
+              💡 <strong>Dica:</strong> Perfis com <strong>8+ fotos</strong> recebem muito mais matches! 
+              Adicione fotos variadas mostrando seu rosto, hobbies e estilo de vida.
+            </p>
+          </div>
+          
+          <!-- Profile Photo -->
+          <div style="margin-bottom:32px">
+            <h3 style="font-size:1.125rem;font-weight:600;margin-bottom:16px;color:var(--text-secondary)">Foto de Perfil</h3>
+            <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+              <div style="position:relative">
+                ${user.profilePhoto ? `
+                  <div class="avatar avatar-xl">
+                    <img src="${user.profilePhoto}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">
+                  </div>
+                ` : `
+                  <div class="avatar avatar-xl" style="background:var(--bg-card-light);border:3px dashed rgba(255,255,255,0.3)">
+                    <span style="font-size:2rem">📷</span>
+                  </div>
+                `}
+              </div>
+              <div>
+                <button class="btn btn-primary btn-sm" onclick="document.getElementById('manager-profile-photo').click()">
+                  ${user.profilePhoto ? '🔄 Trocar Foto' : '📷 Adicionar Foto'}
+                </button>
+                <input type="file" id="manager-profile-photo" accept="image/*" style="display:none" onchange="updateProfilePhoto(this)">
+                <p style="color:var(--text-muted);font-size:0.9rem;margin-top:8px">Esta é a foto principal do seu perfil</p>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Gallery Photos -->
+          <div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+              <h3 style="font-size:1.125rem;font-weight:600;color:var(--text-secondary)">Galeria de Fotos (${photos.length}/12)</h3>
+              <button class="btn btn-primary btn-sm" onclick="document.getElementById('add-gallery-photo').click()" ${photos.length >= 12 ? 'disabled' : ''}>
+                + Adicionar Foto
+              </button>
+              <input type="file" id="add-gallery-photo" accept="image/*" style="display:none" onchange="addGalleryPhoto(this)">
+            </div>
+            
+            <div class="photo-upload-grid" style="grid-template-columns:repeat(4, 1fr)">
+              ${photos.map((p, i) => `
+                <div class="photo-upload-item has-photo" style="aspect-ratio:1">
+                  <img src="${p}" alt="Foto ${i+1}">
+                  <span class="photo-delete" onclick="removeGalleryPhoto(${i})" style="opacity:1">×</span>
+                </div>
+              `).join('')}
+              
+              ${photos.length < 12 ? `
+                <div class="photo-upload-item" style="aspect-ratio:1" onclick="document.getElementById('add-gallery-photo').click()">
+                  <div class="photo-placeholder">
+                    <div class="photo-placeholder-icon">+</div>
+                    <div class="photo-placeholder-text">Adicionar</div>
+                  </div>
+                </div>
+              ` : ''}
+            </div>
+            
+            ${photos.length === 0 ? `
+              <div style="text-align:center;padding:40px;background:var(--bg-card-light);border-radius:16px;margin-top:16px">
+                <p style="color:var(--text-muted)">Nenhuma foto na galeria ainda</p>
+              </div>
+            ` : ''}
+          </div>
+          
+          <div style="margin-top:32px;padding-top:24px;border-top:1px solid rgba(255,255,255,0.1)">
+            <button class="btn btn-primary btn-full btn-lg" onclick="closePhotoManager()">
+              ✓ Concluído
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// Edit Profile Modal
+function renderEditProfileModal() {
+  const user = STATE.userProfile;
+  
+  return `
+    <div class="modal-overlay" onclick="closeEditProfile()">
+      <div class="modal-content" style="max-width:600px" onclick="event.stopPropagation()">
+        <div style="padding:32px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">
+            <h2 style="font-size:1.5rem;font-weight:700">✏️ Editar Perfil</h2>
+            <button class="btn btn-secondary btn-sm" onclick="closeEditProfile()">✕</button>
+          </div>
+          
+          <div class="form-group">
+            <label class="form-label">Nome Completo</label>
+            <input type="text" id="edit-name" class="form-input" value="${user.name || ''}">
+          </div>
+          
+          <div class="grid grid-2" style="gap:16px">
+            <div class="form-group">
+              <label class="form-label">Idade</label>
+              <input type="number" id="edit-age" class="form-input" value="${user.age || ''}" min="18" max="99">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Cidade</label>
+              <input type="text" id="edit-city" class="form-input" value="${user.city || ''}">
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label class="form-label">Bio / Sobre você</label>
+            <textarea id="edit-bio" class="form-input" rows="4">${user.bio || ''}</textarea>
+          </div>
+          
+          <div class="grid grid-2" style="gap:16px">
+            <div class="form-group">
+              <label class="form-label">Profissão</label>
+              <input type="text" id="edit-job" class="form-input" value="${user.job || ''}">
+            </div>
+            <div class="form-group">
+              <label class="form-label">Altura (cm)</label>
+              <input type="number" id="edit-height" class="form-input" value="${user.height || ''}">
+            </div>
+          </div>
+          
+          <div class="grid grid-2" style="gap:16px">
+            <div class="form-group">
+              <label class="form-label">Escolaridade</label>
+              <select id="edit-education" class="form-input">
+                <option value="Ensino Médio" ${user.education==='Ensino Médio'?'selected':''}>Ensino Médio</option>
+                <option value="Superior Incompleto" ${user.education==='Superior Incompleto'?'selected':''}>Superior Incompleto</option>
+                <option value="Superior Completo" ${user.education==='Superior Completo'?'selected':''}>Superior Completo</option>
+                <option value="Pós-graduação" ${user.education==='Pós-graduação'?'selected':''}>Pós-graduação</option>
+                <option value="Mestrado" ${user.education==='Mestrado'?'selected':''}>Mestrado</option>
+                <option value="Doutorado" ${user.education==='Doutorado'?'selected':''}>Doutorado</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Religião</label>
+              <select id="edit-religion" class="form-input">
+                <option value="Católica" ${user.religion==='Católica'?'selected':''}>Católica</option>
+                <option value="Evangélica" ${user.religion==='Evangélica'?'selected':''}>Evangélica</option>
+                <option value="Espírita" ${user.religion==='Espírita'?'selected':''}>Espírita</option>
+                <option value="Outra" ${user.religion==='Outra'?'selected':''}>Outra</option>
+                <option value="Nenhuma" ${user.religion==='Nenhuma'?'selected':''}>Nenhuma</option>
+              </select>
+            </div>
+          </div>
+          
+          <div class="grid grid-2" style="gap:16px">
+            <div class="form-group">
+              <label class="form-label">Fuma?</label>
+              <select id="edit-smoke" class="form-input">
+                <option value="Não" ${user.smoke==='Não'?'selected':''}>Não</option>
+                <option value="Sim" ${user.smoke==='Sim'?'selected':''}>Sim</option>
+                <option value="Às vezes" ${user.smoke==='Às vezes'?'selected':''}>Às vezes</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Bebe?</label>
+              <select id="edit-drink" class="form-input">
+                <option value="Não" ${user.drink==='Não'?'selected':''}>Não</option>
+                <option value="Socialmente" ${user.drink==='Socialmente'?'selected':''}>Socialmente</option>
+                <option value="Sim" ${user.drink==='Sim'?'selected':''}>Sim</option>
+              </select>
+            </div>
+          </div>
+          
+          <div class="form-group">
+            <label class="form-label">Filhos</label>
+            <select id="edit-children" class="form-input">
+              <option value="Não tem, mas quer" ${user.children==='Não tem, mas quer'?'selected':''}>Não tem, mas quer</option>
+              <option value="Não tem, não quer" ${user.children==='Não tem, não quer'?'selected':''}>Não tem, não quer</option>
+              <option value="Tem filhos" ${user.children==='Tem filhos'?'selected':''}>Tem filhos</option>
+            </select>
+          </div>
+          
+          <button class="btn btn-primary btn-full btn-lg" onclick="saveProfileChanges()">
+            💾 Salvar Alterações
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ============================================================
+// SETTINGS PAGE
+// ============================================================
+function renderSettingsPage() {
+  const user = STATE.userProfile;
+  const settings = STATE.settingsCache;
+  const photoCount = (user.photos || []).length;
+  
+  return `
+    <div class="page-content">
+      <div class="page-header"><h1 class="page-title">⚙️ Configurações</h1></div>
+      <div style="max-width:600px">
+        ${settings?.billingActive && !user.isAdmin ? `
+          <div class="subscription-banner ${getDaysRemaining(user) > 0 ? 'subscription-active' : ''}">
+            <div class="subscription-banner-icon">${getDaysRemaining(user) > 0 ? '✅' : '⚠️'}</div>
+            <div class="subscription-banner-text">
+              <div class="subscription-banner-title">${getDaysRemaining(user) > 0 ? 'Subscrição Ativa' : 'Subscrição Expirada'}</div>
+              <div class="subscription-banner-desc">${getDaysRemaining(user) > 0 ? `Expira em ${getDaysRemaining(user)} dias` : 'Renove para continuar'}</div>
+            </div>
+            <a href="https://wa.me/${WHATSAPP_NUMBER}?text=Olá! Quero ${getDaysRemaining(user) > 0 ? 'renovar' : 'activar'} minha subscrição. Email: ${user.email}" target="_blank" class="btn btn-whatsapp">
+              💬 ${getDaysRemaining(user) > 0 ? 'Renovar' : 'Pagar'}
+            </a>
+          </div>
+        ` : ''}
+        
+        <!-- Profile & Photos Quick Access -->
+        <div class="card" style="margin-bottom:24px">
+          <div class="card-body">
+            <h3 style="font-size:1.25rem;font-weight:700;margin-bottom:20px">👤 Perfil</h3>
+            
+            <div style="display:flex;align-items:center;gap:16px;padding:16px;background:var(--bg-card-light);border-radius:16px;margin-bottom:16px">
+              <div style="position:relative">
+                ${user.profilePhoto ? `
+                  <div class="avatar avatar-lg"><img src="${user.profilePhoto}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%"></div>
+                ` : Avatar(user, 'lg', false)}
+              </div>
+              <div style="flex:1">
+                <div style="font-weight:600;font-size:1.125rem">${user.name}</div>
+                <div style="color:var(--text-muted);font-size:0.9rem">${user.city} · ${user.age} anos</div>
+              </div>
+              <button class="btn btn-outline btn-sm" onclick="setPage('profile')">Ver Perfil</button>
+            </div>
+            
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+              <button class="btn btn-secondary btn-full" onclick="setPage('profile');setTimeout(()=>openPhotoManager(),100)">
+                📷 Fotos (${photoCount})
+              </button>
+              <button class="btn btn-secondary btn-full" onclick="setPage('profile');setTimeout(()=>openEditProfile(),100)">
+                ✏️ Editar Dados
+              </button>
+            </div>
+            
+            ${photoCount < 8 ? `
+              <div style="margin-top:16px;padding:12px 16px;background:rgba(255,152,0,0.1);border-radius:12px;border:1px solid rgba(255,152,0,0.2)">
+                <p style="color:var(--warning);font-size:0.95rem;margin:0">
+                  💡 Adicione mais fotos! Perfis com 8+ fotos recebem 3x mais visualizações.
+                </p>
+              </div>
+            ` : ''}
+          </div>
+        </div>
+        
+        <div class="card" style="margin-bottom:24px">
+          <div class="card-body">
+            <h3 style="font-size:1.25rem;font-weight:700;margin-bottom:20px">🔒 Conta</h3>
+            <div class="form-group">
+              <label class="form-label">Email</label>
+              <input type="email" class="form-input" value="${user.email}" disabled>
+              <div class="form-hint">O email não pode ser alterado</div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="card" style="margin-bottom:24px">
+          <div class="card-body">
+            <h3 style="font-size:1.25rem;font-weight:700;margin-bottom:20px">📱 Suporte</h3>
+            <p style="color:var(--text-secondary);margin-bottom:16px">Precisa de ajuda? Entre em contacto connosco pelo WhatsApp.</p>
+            <a href="https://wa.me/${WHATSAPP_NUMBER}?text=Olá! Preciso de ajuda com minha conta no AmorReal. Email: ${user.email}" target="_blank" class="btn btn-whatsapp btn-full">
+              💬 Falar no WhatsApp
+            </a>
+          </div>
+        </div>
+        
+        <div class="card" style="border-color:var(--error)">
+          <div class="card-body">
+            <h3 style="font-size:1.25rem;font-weight:700;margin-bottom:20px;color:var(--error)">⚠️ Zona de Perigo</h3>
+            <p style="color:var(--text-muted);margin-bottom:16px;font-size:0.95rem">Ao desativar sua conta, seu perfil não será mais visível para outros usuários.</p>
+            <button class="btn btn-outline" style="border-color:var(--error);color:var(--error)" onclick="if(confirm('Tem certeza que deseja desativar sua conta?'))handleDeactivate()">Desativar Conta</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ============================================================
+// PROFILE MODAL
+// ============================================================
+function renderProfileModal() {
+  const u = STATE.usersCache.find(x => x.id === STATE.selectedProfile);
+  if (!u) return '';
+  const user = STATE.userProfile;
+  const compat = calculateCompatibility(user, u);
+  const photos = u.photos || [];
+  
+  return `
+    <div class="modal-overlay" onclick="closeModal()">
+      <div class="modal-content" onclick="event.stopPropagation()">
+        <div style="height:250px;position:relative;overflow:hidden">
+          ${u.profilePhoto ? `<img src="${u.profilePhoto}" alt="" style="width:100%;height:100%;object-fit:cover">` : `<div style="width:100%;height:100%;background:linear-gradient(135deg,${u.avatarColor||generateColor(u.name)}88,${u.avatarColor||generateColor(u.name)}33);display:flex;align-items:center;justify-content:center">${Avatar(u, 'xl', false)}</div>`}
+          <button class="modal-close" onclick="closeModal()">×</button>
+          <div style="position:absolute;bottom:20px;right:20px;background:rgba(0,0,0,0.7);padding:12px 20px;border-radius:50px">
+            <span style="color:var(--primary-light);font-weight:700;font-size:1.25rem">${compat.score}%</span>
+          </div>
+        </div>
+        <div style="padding:32px">
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:8px">
+            <h2 style="font-size:1.75rem;font-weight:700">${u.name}, ${u.age}</h2>
+            ${u.verified ? '<span class="badge badge-info">✓</span>' : ''}
+            ${u.online ? '<span class="badge badge-success">Online</span>' : ''}
+          </div>
+          <p style="color:var(--text-muted);margin-bottom:20px">📍 ${u.city} · 💼 ${u.job || '-'}</p>
+          <p style="color:var(--text-secondary);margin-bottom:24px;line-height:1.7">${u.bio || ''}</p>
+          
+          ${photos.length > 0 ? `
+            <h3 style="font-size:1.125rem;font-weight:700;margin-bottom:12px">📸 Fotos</h3>
+            <div class="photo-gallery" style="margin-bottom:24px">
+              ${photos.slice(0,6).map((p, i) => `
+                <div class="photo-gallery-item ${i === 0 ? 'main' : ''}" onclick="event.stopPropagation();openLightbox(${i}, ${JSON.stringify(photos).replace(/"/g, '&quot;')})">
+                  <img src="${p}" alt="">
+                </div>
+              `).join('')}
+            </div>
+          ` : ''}
+          
+          <div class="card" style="background:linear-gradient(135deg,rgba(233,30,99,0.1),rgba(156,39,176,0.1));border-color:rgba(233,30,99,0.3);margin-bottom:24px">
+            <div class="card-body">
+              <h3 style="font-weight:700;margin-bottom:12px">🤖 Compatibilidade</h3>
+              <div class="compat-bar" style="height:12px;margin-bottom:12px"><div class="compat-fill" style="width:${compat.score}%"></div></div>
+              <div style="display:flex;flex-wrap:wrap;gap:8px">${compat.factors.map(f => `<span class="badge badge-success">✓ ${f}</span>`).join('')}</div>
+            </div>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:24px">${(u.interests||[]).map(i => `<span class="badge ${(user.interests||[]).includes(i)?'badge-primary':'badge-info'}">${(user.interests||[]).includes(i)?'⭐ ':''}${i}</span>`).join('')}</div>
+          <div style="display:flex;gap:16px">
+            <button class="btn ${(user.likes||[]).includes(u.id)?'btn-primary':'btn-outline'} btn-lg" style="flex:1" onclick="likeUser('${u.id}');closeModal()">${(user.likes||[]).includes(u.id)?'❤️ Curtido':'🤍 Curtir'}</button>
+            <button class="btn btn-secondary btn-lg" style="flex:1" onclick="startChat('${u.id}');closeModal()">💬 Conversar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ============================================================
+// MATCH ANIMATION
+// ============================================================
+function renderMatchAnimation() {
+  const other = STATE.usersCache.find(u => u.id === STATE.matchAnimation);
+  if (!other) return '';
+  const user = STATE.userProfile;
+  return `
+    <div class="match-overlay" onclick="closeMatchAnimation()">
+      <div class="match-content" onclick="event.stopPropagation()">
+        <div class="match-hearts animate-heartbeat">💕</div>
+        <h1 class="match-title">É um Match!</h1>
+        <p class="match-text">Você e ${other.name} gostaram um do outro!</p>
+        <div class="match-avatars">
+          <div class="match-avatar-item">
+            ${user.profilePhoto ? `<div class="avatar avatar-xl"><img src="${user.profilePhoto}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%"></div>` : Avatar(user, 'xl', false)}
+            <div class="match-avatar-name">${(user.name||'').split(' ')[0]}</div>
+          </div>
+          <div class="match-heart animate-pulse">❤️</div>
+          <div class="match-avatar-item">
+            ${other.profilePhoto ? `<div class="avatar avatar-xl"><img src="${other.profilePhoto}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%"></div>` : Avatar(other, 'xl', false)}
+            <div class="match-avatar-name">${(other.name||'').split(' ')[0]}</div>
+          </div>
+        </div>
+        <div class="match-buttons">
+          <button class="btn btn-primary btn-lg" onclick="startChat('${other.id}');closeMatchAnimation()">💬 Conversar</button>
+          <button class="btn btn-secondary btn-lg" onclick="closeMatchAnimation()">Continuar</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ============================================================
+// LIGHTBOX
+// ============================================================
+function renderLightbox() {
+  const photos = STATE.lightboxPhotos;
+  const index = STATE.lightboxIndex;
+  return `
+    <div class="lightbox" onclick="closeLightbox()">
+      <div class="lightbox-content" onclick="event.stopPropagation()">
+        <button class="lightbox-close" onclick="closeLightbox()">×</button>
+        ${index > 0 ? `<button class="lightbox-nav lightbox-prev" onclick="prevPhoto()">‹</button>` : ''}
+        ${index < photos.length - 1 ? `<button class="lightbox-nav lightbox-next" onclick="nextPhoto()">›</button>` : ''}
+        <img src="${photos[index]}" alt="">
+        <div class="lightbox-counter">${index + 1} / ${photos.length}</div>
+      </div>
+    </div>
+  `;
+}
+
+// ============================================================
+// ADMIN PANEL
+// ============================================================
+function renderAdminPanel() {
+  const users = STATE.usersCache;
+  const reports = STATE.reportsCache;
+  const settings = STATE.settingsCache || {};
+  
+  return `
+    <div class="app-layout">
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <div style="display:flex;align-items:center;gap:12px">
+            <span style="font-size:2rem">🔐</span>
+            <span style="font-family:'Playfair Display',serif;font-size:1.5rem;font-weight:700;color:var(--primary-light)">Admin</span>
+          </div>
+        </div>
+        <nav class="sidebar-nav">
+          <div class="nav-item ${STATE.currentPage==='admin-dashboard'?'active':''}" onclick="setPage('admin-dashboard')"><span class="nav-icon">📊</span> Dashboard</div>
+          <div class="nav-item ${STATE.currentPage==='admin-users'?'active':''}" onclick="setPage('admin-users')"><span class="nav-icon">👥</span> Usuários</div>
+          <div class="nav-item ${STATE.currentPage==='admin-billing'?'active':''}" onclick="setPage('admin-billing')"><span class="nav-icon">💰</span> Cobrança</div>
+          <div class="nav-item ${STATE.currentPage==='admin-reports'?'active':''}" onclick="setPage('admin-reports')"><span class="nav-icon">⚠️</span> Denúncias${reports.filter(r=>r.status==='pending').length?`<span class="nav-badge">${reports.filter(r=>r.status==='pending').length}</span>`:''}</div>
+          <div style="border-top:1px solid rgba(255,255,255,0.08);margin:16px 0"></div>
+          <div class="nav-item" onclick="setPage('discover')"><span class="nav-icon">←</span> Voltar ao App</div>
+        </nav>
+        <div class="sidebar-footer">
+          <div class="nav-item" style="color:var(--error)" onclick="handleLogout()"><span class="nav-icon">🚪</span> Sair</div>
+        </div>
+      </aside>
+      <main class="main-content">${renderAdminPage()}</main>
+    </div>
+  `;
+}
+
+function renderAdminPage() {
+  const users = STATE.usersCache;
+  const reports = STATE.reportsCache;
+  const settings = STATE.settingsCache || {};
+  
+  switch (STATE.currentPage) {
+    case 'admin-dashboard':
+      return `
+        <div class="page-content">
+          <div class="page-header"><h1 class="page-title">📊 Dashboard</h1></div>
+          <div class="grid grid-4" style="margin-bottom:32px">
+            <div class="card"><div class="card-body" style="text-align:center"><div style="font-size:2.5rem;margin-bottom:8px">👥</div><div style="font-size:2rem;font-weight:800">${users.length}</div><div style="color:var(--text-muted)">Usuários</div></div></div>
+            <div class="card"><div class="card-body" style="text-align:center"><div style="font-size:2.5rem;margin-bottom:8px">🟢</div><div style="font-size:2rem;font-weight:800">${users.filter(u=>u.online).length}</div><div style="color:var(--text-muted)">Online</div></div></div>
+            <div class="card"><div class="card-body" style="text-align:center"><div style="font-size:2.5rem;margin-bottom:8px">💰</div><div style="font-size:2rem;font-weight:800">${settings.billingActive ? 'Ativo' : 'Inativo'}</div><div style="color:var(--text-muted)">Cobrança</div></div></div>
+            <div class="card"><div class="card-body" style="text-align:center"><div style="font-size:2.5rem;margin-bottom:8px">⚠️</div><div style="font-size:2rem;font-weight:800">${reports.filter(r=>r.status==='pending').length}</div><div style="color:var(--text-muted)">Denúncias</div></div></div>
+          </div>
+          <div class="card">
+            <div class="card-body">
+              <h3 style="font-size:1.25rem;font-weight:700;margin-bottom:20px">Usuários Recentes</h3>
+              ${users.slice(0,10).map(u => `
+                <div style="display:flex;align-items:center;gap:16px;padding:12px;background:rgba(255,255,255,0.03);border-radius:12px;margin-bottom:8px">
+                  ${u.profilePhoto ? `<div class="avatar avatar-sm"><img src="${u.profilePhoto}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%"></div>` : Avatar(u, 'sm', true)}
+                  <div style="flex:1"><div style="font-weight:600">${u.name || u.username || 'Sem nome'}</div><div style="color:var(--text-muted);font-size:0.9rem">${u.email}</div></div>
+                  ${u.isAdmin ? '<span class="badge badge-primary">Admin</span>' : ''}
+                  ${settings.billingActive && !u.isAdmin ? `<span class="badge ${getDaysRemaining(u) > 0 ? 'badge-success' : 'badge-error'}">${getDaysRemaining(u) > 0 ? getDaysRemaining(u) + 'd' : 'Expirado'}</span>` : ''}
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+      `;
+      
+    case 'admin-users':
+      return `
+        <div class="page-content">
+          <div class="page-header"><h1 class="page-title">👥 Usuários</h1></div>
+          <div class="card">
+            <div style="overflow-x:auto">
+              <table class="admin-table">
+                <thead><tr><th>Usuário</th><th>Email</th><th>Subscrição</th><th>Ações</th></tr></thead>
+                <tbody>
+                  ${users.map(u => `
+                    <tr>
+                      <td>
+                        <div style="display:flex;align-items:center;gap:12px">
+                          ${u.profilePhoto ? `<div class="avatar avatar-sm"><img src="${u.profilePhoto}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%"></div>` : Avatar(u, 'sm', false)}
+                          <div><div style="font-weight:600">${u.name || u.username || '-'}</div><div style="color:var(--text-muted);font-size:0.875rem">${u.city || '-'}</div></div>
+                          ${u.isAdmin ? '<span class="badge badge-primary">Admin</span>' : ''}
+                        </div>
+                      </td>
+                      <td style="color:var(--text-muted)">${u.email}</td>
+                      <td>
+                        ${u.isAdmin ? '<span class="badge badge-info">Admin</span>' : 
+                          settings.billingActive ? 
+                            (getDaysRemaining(u) > 0 ? `<span class="badge badge-success">${getDaysRemaining(u)} dias</span>` : '<span class="badge badge-error">Expirado</span>') :
+                            '<span class="badge badge-info">-</span>'
+                        }
+                      </td>
+                      <td>
+                        <div style="display:flex;gap:8px">
+                          ${!u.isAdmin && settings.billingActive ? `<button class="btn btn-success btn-sm" onclick="addSubscription('${u.id}')">+30 dias</button>` : ''}
+                          <button class="btn ${u.active!==false?'btn-outline':'btn-primary'} btn-sm" style="${u.active!==false?'border-color:var(--error);color:var(--error)':''}" onclick="adminToggleUser('${u.id}')">${u.active!==false?'Desativar':'Ativar'}</button>
+                        </div>
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      `;
+      
+    case 'admin-billing':
+      return `
+        <div class="page-content">
+          <div class="page-header"><h1 class="page-title">💰 Sistema de Cobrança</h1></div>
+          <div style="max-width:600px">
+            <div class="card" style="margin-bottom:24px">
+              <div class="card-body">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px">
+                  <div>
+                    <h3 style="font-size:1.25rem;font-weight:700">Activar Cobrança</h3>
+                    <p style="color:var(--text-muted)">Os usuários precisarão pagar para usar</p>
+                  </div>
+                  <div class="toggle ${settings.billingActive?'active':''}" onclick="toggleBilling()"></div>
+                </div>
+                
+                <div class="form-group">
+                  <label class="form-label">Valor da Subscrição (AOA)</label>
+                  <input type="number" id="billing-price" class="form-input" value="${settings.subscriptionPrice || 5000}" placeholder="5000">
+                </div>
+                
+                <div class="form-group">
+                  <label class="form-label">Período</label>
+                  <select id="billing-period" class="form-input">
+                    <option value="monthly" ${settings.subscriptionPeriod==='monthly'?'selected':''}>Mensal</option>
+                    <option value="yearly" ${settings.subscriptionPeriod==='yearly'?'selected':''}>Anual</option>
+                  </select>
+                </div>
+                
+                <button class="btn btn-primary btn-full" onclick="saveBillingSettings()">Salvar Configurações</button>
+              </div>
+            </div>
+            
+            <div class="card" style="background:linear-gradient(135deg,var(--whatsapp),#128C7E)">
+              <div class="card-body" style="text-align:center">
+                <h3 style="font-size:1.25rem;font-weight:700;margin-bottom:8px">📱 WhatsApp para Pagamentos</h3>
+                <p style="font-size:2rem;font-weight:800">${WHATSAPP_NUMBER}</p>
+                <p style="opacity:0.9">Os usuários entrarão em contacto por este número</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+      
+    case 'admin-reports':
+      return `
+        <div class="page-content">
+          <div class="page-header"><h1 class="page-title">⚠️ Denúncias</h1></div>
+          ${reports.length === 0 ? '<div class="empty-state"><span class="empty-state-icon">✅</span><h3 class="empty-state-title">Nenhuma denúncia</h3></div>' : `
+            <div style="display:flex;flex-direction:column;gap:16px">
+              ${reports.map(r => {
+                const from = users.find(u => u.id === r.from);
+                const against = users.find(u => u.id === r.against);
+                return `
+                  <div class="card">
+                    <div class="card-body">
+                      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+                        <h3 style="font-weight:700">${r.reason || '-'}</h3>
+                        <span class="badge ${r.status==='pending'?'badge-warning':'badge-success'}">${r.status==='pending'?'Pendente':'Resolvida'}</span>
+                      </div>
+                      <p style="color:var(--text-muted);margin-bottom:12px"><strong>De:</strong> ${from?.name || '-'} → <strong>Contra:</strong> ${against?.name || '-'}</p>
+                      <p style="background:rgba(255,255,255,0.05);padding:16px;border-radius:12px;margin-bottom:16px">${r.details || '-'}</p>
+                      ${r.status==='pending' ? `<div style="display:flex;gap:12px"><button class="btn btn-primary btn-sm" onclick="resolveReport('${r.id}')">✅ Resolver</button><button class="btn btn-outline btn-sm" style="border-color:var(--error);color:var(--error)" onclick="adminToggleUser('${r.against}')">🚫 Banir</button></div>` : ''}
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          `}
+        </div>
+      `;
+      
+    default: return '';
+  }
+}
+
+// ============================================================
+// EVENT HANDLERS
+// ============================================================
+function goTo(page) { STATE.currentPage = page; render(); }
+function setPage(page) { STATE.currentPage = page; render(); }
+function togglePw(id, icon) { const i = document.getElementById(id); i.type = i.type === 'password' ? 'text' : 'password'; icon.textContent = i.type === 'password' ? '👁️' : '🙈'; }
+function updatePwStrength() {
+  const p = document.getElementById('reg-password')?.value || '';
+  const s = Validate.passwordStrength(p);
+  const f = document.getElementById('pw-strength-fill');
+  const t = document.getElementById('pw-strength-text');
+  if (f) f.className = 'password-strength-fill ' + s.class;
+  if (t) { t.textContent = p ? 'Força: ' + s.text : ''; t.style.color = s.color; }
+}
+function toggleInterest(i, btn) {
+  if (STATE.selectedInterests.includes(i)) { STATE.selectedInterests = STATE.selectedInterests.filter(x => x !== i); btn.classList.remove('selected'); }
+  else { STATE.selectedInterests.push(i); btn.classList.add('selected'); }
+  const c = document.getElementById('interest-count'); if (c) c.textContent = STATE.selectedInterests.length;
+}
+function deletePhoto(index) {
+  if (index === 'profile') STATE.profilePhoto = null;
+  else STATE.uploadedPhotos[index] = null;
+  render();
+}
+function prevStep() { STATE.profileStep--; render(); }
+function nextStep() {
+  const step = STATE.profileStep;
+  if (step === 1) {
+    if (!STATE.profilePhoto) { document.getElementById('photo-error').style.display = 'flex'; document.getElementById('photo-error').textContent = '⚠ Adicione uma foto de perfil'; return; }
+    const validPhotos = STATE.uploadedPhotos.filter(p => p);
+    if (validPhotos.length < 5) { document.getElementById('photo-error').style.display = 'flex'; document.getElementById('photo-error').textContent = '⚠ Adicione pelo menos 5 fotos na galeria'; return; }
+  }
+  if (step === 2) {
+    const name = document.getElementById('prof-name')?.value?.trim();
+    const age = document.getElementById('prof-age')?.value;
+    const gender = document.getElementById('prof-gender')?.value;
+    const city = document.getElementById('prof-city')?.value?.trim();
+    if (!Validate.username(name) || !Validate.age(age) || !gender || !city) {
+      document.getElementById('data-error').style.display = 'flex';
+      document.getElementById('data-error').textContent = '⚠ Preencha todos os campos obrigatórios';
+      return;
+    }
+    STATE.userProfile.name = Validate.sanitize(name);
+    STATE.userProfile.age = parseInt(age);
+    STATE.userProfile.gender = gender;
+    STATE.userProfile.city = Validate.sanitize(city);
+  }
+  if (step === 3) {
+    const bio = document.getElementById('prof-bio')?.value?.trim();
+    if (!Validate.bio(bio)) {
+      document.getElementById('about-error').style.display = 'flex';
+      document.getElementById('about-error').textContent = '⚠ Bio deve ter entre 20 e 500 caracteres';
+      return;
+    }
+    STATE.userProfile.bio = Validate.sanitize(bio);
+    STATE.userProfile.job = Validate.sanitize(document.getElementById('prof-job')?.value || '');
+    STATE.userProfile.height = parseInt(document.getElementById('prof-height')?.value) || null;
+    STATE.userProfile.education = document.getElementById('prof-education')?.value;
+    STATE.userProfile.religion = document.getElementById('prof-religion')?.value;
+    STATE.userProfile.smoke = document.getElementById('prof-smoke')?.value;
+    STATE.userProfile.drink = document.getElementById('prof-drink')?.value;
+    STATE.userProfile.children = document.getElementById('prof-children')?.value;
+  }
+  STATE.profileStep++;
+  render();
+}
+
+async function finishProfile() {
+  if (STATE.selectedInterests.length < 3) {
+    document.getElementById('interests-error').style.display = 'flex';
+    document.getElementById('interests-error').textContent = '⚠ Selecione pelo menos 3 interesses';
+    return;
+  }
+  showLoading('Salvando perfil...');
+  try {
+    const photos = STATE.uploadedPhotos.filter(p => p);
+    const data = {
+      ...STATE.userProfile,
+      profilePhoto: STATE.profilePhoto,
+      photos: photos,
+      interests: STATE.selectedInterests,
+      lookingFor: document.getElementById('prof-looking')?.value,
+      profileComplete: true,
+      avatarColor: generateColor(STATE.userProfile.name || STATE.userProfile.email)
+    };
+    await updateUserProfile(STATE.currentUser.uid, data);
+    STATE.userProfile = data;
+    STATE.currentPage = 'suggestions';
+    STATE.usersCache = await getAllUsers();
+    hideLoading();
+    showToast('Perfil completo!', 'success');
+    render();
+  } catch (e) { hideLoading(); handleError(e); }
+}
+
+async function handleRegister(e) {
+  e.preventDefault();
+  const username = document.getElementById('reg-username')?.value?.trim();
+  const email = document.getElementById('reg-email')?.value?.trim();
+  const pw = document.getElementById('reg-password')?.value;
+  const pw2 = document.getElementById('reg-password2')?.value;
+  if (!Validate.username(username)) { showToast('Nome deve ter 3+ caracteres', 'error'); return; }
+  if (!Validate.email(email)) { showToast('Email inválido', 'error'); return; }
+  if (!Validate.password(pw)) { showToast('Senha deve ter 6+ caracteres', 'error'); return; }
+  if (pw !== pw2) { showToast('Senhas não conferem', 'error'); return; }
+  showLoading('Criando conta...');
+  try {
+    const isFirst = await checkFirstUser();
+    const cred = await auth.createUserWithEmailAndPassword(email, pw);
+    await createUserProfile(cred.user.uid, {
+      username: Validate.sanitize(username), email, isAdmin: isFirst, verified: isFirst,
+      active: true, online: true, profileComplete: false, avatarColor: generateColor(email),
+      likes: [], matches: [],
+      subscriptionExpiry: isFirst ? null : firebase.firestore.Timestamp.fromDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)) // 7 days trial
+    });
+    STATE.currentUser = cred.user;
+    STATE.userProfile = await getUserProfile(cred.user.uid);
+    STATE.settingsCache = await getSettings();
+    STATE.profileStep = 1;
+    STATE.selectedInterests = [];
+    STATE.uploadedPhotos = [];
+    STATE.profilePhoto = null;
+    hideLoading();
+    if (isFirst) showToast('🎉 Você é o Administrador!', 'success', 6000);
+    else showToast('Conta criada! Complete seu perfil.', 'success');
+    render();
+  } catch (e) { hideLoading(); handleError(e); }
+}
+
+async function handleLogin(e) {
+  e.preventDefault();
+  const email = document.getElementById('login-email')?.value?.trim();
+  const pw = document.getElementById('login-password')?.value;
+  if (!Validate.email(email)) { showToast('Email inválido', 'error'); return; }
+  if (!pw) { showToast('Digite a senha', 'error'); return; }
+  showLoading('Entrando...');
+  try {
+    const cred = await auth.signInWithEmailAndPassword(email, pw);
+    const profile = await getUserProfile(cred.user.uid);
+    if (!profile) { hideLoading(); showToast('Perfil não encontrado', 'error'); return; }
+    if (profile.active === false) { hideLoading(); showToast('Conta desativada', 'error'); await auth.signOut(); return; }
+    await updateUserProfile(cred.user.uid, { online: true });
+    STATE.currentUser = cred.user;
+    STATE.userProfile = { ...profile, online: true };
+    STATE.currentPage = profile.profileComplete ? 'discover' : 'complete-profile';
+    STATE.profileStep = 1;
+    STATE.selectedInterests = profile.interests || [];
+    STATE.uploadedPhotos = profile.photos || [];
+    STATE.profilePhoto = profile.profilePhoto || null;
+    STATE.usersCache = await getAllUsers();
+    STATE.reportsCache = await getReports();
+    STATE.settingsCache = await getSettings();
+    hideLoading();
+    showToast(`Bem-vindo, ${(profile.name || profile.username || '').split(' ')[0]}!`, 'success');
+    render();
+  } catch (e) { hideLoading(); handleError(e); }
+}
+
+async function handleForgot(e) {
+  e.preventDefault();
+  const email = document.getElementById('forgot-email')?.value?.trim();
+  if (!Validate.email(email)) { showToast('Email inválido', 'error'); return; }
+  showLoading('Enviando...');
+  try { await auth.sendPasswordResetEmail(email); hideLoading(); showToast('Email enviado!', 'success'); goTo('login'); }
+  catch (e) { hideLoading(); handleError(e); }
+}
+
+async function handleLogout() {
+  showLoading('Saindo...');
+  try { if (STATE.currentUser) await updateUserProfile(STATE.currentUser.uid, { online: false }); await auth.signOut(); STATE.currentUser = null; STATE.userProfile = null; STATE.currentPage = 'landing'; hideLoading(); render(); }
+  catch (e) { hideLoading(); handleError(e); }
+}
+
+async function handleDeactivate() {
+  showLoading('Desativando...');
+  try { await updateUserProfile(STATE.currentUser.uid, { active: false, online: false }); await auth.signOut(); STATE.currentUser = null; STATE.userProfile = null; STATE.currentPage = 'landing'; hideLoading(); showToast('Conta desativada', 'info'); render(); }
+  catch (e) { hideLoading(); handleError(e); }
+}
+
+async function likeUser(userId) {
+  if (!STATE.currentUser || !STATE.userProfile) return;
+  try {
+    let likes = STATE.userProfile.likes || [];
+    let matches = STATE.userProfile.matches || [];
+    if (likes.includes(userId)) { likes = likes.filter(id => id !== userId); }
+    else {
+      likes.push(userId);
+      const other = STATE.usersCache.find(u => u.id === userId);
+      if (other && (other.likes || []).includes(STATE.currentUser.uid) && !matches.includes(userId)) {
+        matches.push(userId);
+        let om = other.matches || [];
+        if (!om.includes(STATE.currentUser.uid)) { om.push(STATE.currentUser.uid); await updateUserProfile(userId, { matches: om }); }
+        STATE.matchAnimation = userId;
+      }
+    }
+    await updateUserProfile(STATE.currentUser.uid, { likes, matches });
+    STATE.userProfile = { ...STATE.userProfile, likes, matches };
+    STATE.usersCache = await getAllUsers();
+    render();
+  } catch (e) { handleError(e); }
+}
+
+function viewProfile(id) { STATE.selectedProfile = id; render(); }
+function closeModal() { STATE.selectedProfile = null; render(); }
+function closeMatchAnimation() { STATE.matchAnimation = null; render(); }
+function startChat(id) { STATE.chatWith = id; setPage('chat'); showToast('Chat em desenvolvimento', 'info'); }
+function switchLikeTab(tab) {
+  document.getElementById('tab-received').className = tab === 'received' ? 'btn btn-primary' : 'btn btn-secondary';
+  document.getElementById('tab-sent').className = tab === 'sent' ? 'btn btn-primary' : 'btn btn-secondary';
+  document.getElementById('likes-received').style.display = tab === 'received' ? 'block' : 'none';
+  document.getElementById('likes-sent').style.display = tab === 'sent' ? 'block' : 'none';
+}
+function openLightbox(index, photos) {
+  STATE.lightboxPhotos = typeof photos === 'string' ? JSON.parse(photos.replace(/&quot;/g, '"')) : photos;
+  STATE.lightboxIndex = index;
+  STATE.lightboxPhoto = true;
+  render();
+}
+
+// Photo Manager Functions
+function openPhotoManager() {
+  STATE.showPhotoManager = true;
+  render();
+}
+
+function closePhotoManager() {
+  STATE.showPhotoManager = false;
+  render();
+}
+
+function openEditProfile() {
+  STATE.showEditProfile = true;
+  render();
+}
+
+function closeEditProfile() {
+  STATE.showEditProfile = false;
+  render();
+}
+
+async function updateProfilePhoto(input) {
+  if (!input.files[0]) return;
+  const file = input.files[0];
+  if (file.size > 5 * 1024 * 1024) {
+    showToast('Imagem muito grande. Máximo 5MB.', 'error');
+    return;
+  }
+  showLoading('Processando foto...');
+  try {
+    const base64 = await compressImage(file);
+    await updateUserProfile(STATE.currentUser.uid, { profilePhoto: base64 });
+    STATE.userProfile.profilePhoto = base64;
+    hideLoading();
+    showToast('Foto de perfil atualizada!', 'success');
+    render();
+  } catch (e) {
+    hideLoading();
+    handleError(e);
+  }
+}
+
+async function addGalleryPhoto(input) {
+  if (!input.files[0]) return;
+  const file = input.files[0];
+  if (file.size > 5 * 1024 * 1024) {
+    showToast('Imagem muito grande. Máximo 5MB.', 'error');
+    return;
+  }
+  const photos = STATE.userProfile.photos || [];
+  if (photos.length >= 12) {
+    showToast('Máximo de 12 fotos na galeria.', 'warning');
+    return;
+  }
+  showLoading('Processando foto...');
+  try {
+    const base64 = await compressImage(file);
+    photos.push(base64);
+    await updateUserProfile(STATE.currentUser.uid, { photos });
+    STATE.userProfile.photos = photos;
+    hideLoading();
+    showToast('Foto adicionada!', 'success');
+    render();
+  } catch (e) {
+    hideLoading();
+    handleError(e);
+  }
+}
+
+async function removeGalleryPhoto(index) {
+  if (!confirm('Remover esta foto?')) return;
+  showLoading('Removendo...');
+  try {
+    const photos = STATE.userProfile.photos || [];
+    photos.splice(index, 1);
+    await updateUserProfile(STATE.currentUser.uid, { photos });
+    STATE.userProfile.photos = photos;
+    hideLoading();
+    showToast('Foto removida!', 'success');
+    render();
+  } catch (e) {
+    hideLoading();
+    handleError(e);
+  }
+}
+
+async function saveProfileChanges() {
+  showLoading('Salvando...');
+  try {
+    const data = {
+      name: Validate.sanitize(document.getElementById('edit-name')?.value || ''),
+      age: parseInt(document.getElementById('edit-age')?.value) || STATE.userProfile.age,
+      city: Validate.sanitize(document.getElementById('edit-city')?.value || ''),
+      bio: Validate.sanitize(document.getElementById('edit-bio')?.value || ''),
+      job: Validate.sanitize(document.getElementById('edit-job')?.value || ''),
+      height: parseInt(document.getElementById('edit-height')?.value) || null,
+      education: document.getElementById('edit-education')?.value,
+      religion: document.getElementById('edit-religion')?.value,
+      smoke: document.getElementById('edit-smoke')?.value,
+      drink: document.getElementById('edit-drink')?.value,
+      children: document.getElementById('edit-children')?.value
+    };
+    
+    if (!data.name || data.name.length < 3) {
+      hideLoading();
+      showToast('Nome deve ter pelo menos 3 caracteres', 'error');
+      return;
+    }
+    if (!data.bio || data.bio.length < 20) {
+      hideLoading();
+      showToast('Bio deve ter pelo menos 20 caracteres', 'error');
+      return;
+    }
+    
+    await updateUserProfile(STATE.currentUser.uid, data);
+    STATE.userProfile = { ...STATE.userProfile, ...data };
+    STATE.showEditProfile = false;
+    hideLoading();
+    showToast('Perfil atualizado!', 'success');
+    render();
+  } catch (e) {
+    hideLoading();
+    handleError(e);
+  }
+}
+function closeLightbox() { STATE.lightboxPhoto = null; render(); }
+function prevPhoto() { if (STATE.lightboxIndex > 0) { STATE.lightboxIndex--; render(); } }
+function nextPhoto() { if (STATE.lightboxIndex < STATE.lightboxPhotos.length - 1) { STATE.lightboxIndex++; render(); } }
+
+// Admin
+async function adminToggleUser(id) {
+  showLoading('Atualizando...');
+  try { const u = STATE.usersCache.find(x => x.id === id); if (u) { await updateUserProfile(id, { active: u.active === false }); STATE.usersCache = await getAllUsers(); } hideLoading(); showToast('Usuário atualizado', 'success'); render(); }
+  catch (e) { hideLoading(); handleError(e); }
+}
+
+async function resolveReport(id) {
+  showLoading('Atualizando...');
+  try { await db.collection('reports').doc(id).update({ status: 'resolved' }); STATE.reportsCache = await getReports(); hideLoading(); showToast('Denúncia resolvida', 'success'); render(); }
+  catch (e) { hideLoading(); handleError(e); }
+}
+
+async function toggleBilling() {
+  const settings = STATE.settingsCache || {};
+  settings.billingActive = !settings.billingActive;
+  await updateSettings(settings);
+  STATE.settingsCache = settings;
+  render();
+  showToast(settings.billingActive ? 'Cobrança ativada' : 'Cobrança desativada', 'success');
+}
+
+async function saveBillingSettings() {
+  showLoading('Salvando...');
+  try {
+    const price = parseInt(document.getElementById('billing-price')?.value) || 5000;
+    const period = document.getElementById('billing-period')?.value || 'monthly';
+    const settings = { ...STATE.settingsCache, subscriptionPrice: price, subscriptionPeriod: period };
+    await updateSettings(settings);
+    STATE.settingsCache = settings;
+    hideLoading();
+    showToast('Configurações salvas!', 'success');
+    render();
+  } catch (e) { hideLoading(); handleError(e); }
+}
+
+async function addSubscription(userId) {
+  showLoading('Adicionando...');
+  try {
+    const user = STATE.usersCache.find(u => u.id === userId);
+    let expiry = new Date();
+    if (user?.subscriptionExpiry) {
+      const current = user.subscriptionExpiry.toDate ? user.subscriptionExpiry.toDate() : new Date(user.subscriptionExpiry);
+      if (current > new Date()) expiry = current;
+    }
+    expiry.setDate(expiry.getDate() + 30);
+    await updateUserProfile(userId, { subscriptionExpiry: firebase.firestore.Timestamp.fromDate(expiry) });
+    STATE.usersCache = await getAllUsers();
+    hideLoading();
+    showToast('+30 dias adicionados!', 'success');
+    render();
+  } catch (e) { hideLoading(); handleError(e); }
+}
+
+// Bio counter
+document.addEventListener('input', e => {
+  if (e.target.id === 'prof-bio') {
+    const c = document.getElementById('bio-counter');
+    if (c) c.textContent = e.target.value.length + '/500';
+  }
+});
+
+// Auth state listener
+auth.onAuthStateChanged(async user => {
+  if (user) {
+    showLoading('Carregando...');
+    try {
+      const profile = await getUserProfile(user.uid);
+      if (profile) {
+        if (profile.active === false) { await auth.signOut(); hideLoading(); return; }
+        await updateUserProfile(user.uid, { online: true });
+        STATE.currentUser = user;
+        STATE.userProfile = { ...profile, online: true };
+        STATE.currentPage = profile.profileComplete ? 'discover' : 'complete-profile';
+        STATE.selectedInterests = profile.interests || [];
+        STATE.uploadedPhotos = profile.photos || [];
+        STATE.profilePhoto = profile.profilePhoto || null;
+        STATE.usersCache = await getAllUsers();
+        STATE.reportsCache = await getReports();
+        STATE.settingsCache = await getSettings();
+      }
+    } catch (e) { console.error(e); }
+    hideLoading();
+  } else {
+    STATE.currentUser = null;
+    STATE.userProfile = null;
+    STATE.currentPage = 'landing';
+    hideLoading();
+  }
+  render();
+});
+
+render();
+</script>
+</body>
+</html>
