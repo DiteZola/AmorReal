@@ -505,7 +505,8 @@ const STATE = {
   uploadedPhotos: [],
   profilePhoto: null,
   showPhotoManager: false,
-  showEditProfile: false
+  showEditProfile: false,
+  chatMessages: []
 };
 
 const WHATSAPP_NUMBER = '929250600';
@@ -594,14 +595,28 @@ function formatCurrency(v) {
 // ============================================================
 // FIRESTORE
 // ============================================================
+
+// Flag to prevent onAuthStateChanged from interfering during registration
+let isRegistering = false;
+
 async function checkFirstUser() {
-  const s = await db.collection('users').limit(1).get();
-  return s.empty;
+  try {
+    const s = await db.collection('users').limit(1).get();
+    return s.empty;
+  } catch (e) {
+    console.warn('checkFirstUser error:', e.message);
+    return false;
+  }
 }
 
 async function getUserProfile(uid) {
-  const d = await db.collection('users').doc(uid).get();
-  return d.exists ? { id: d.id, ...d.data() } : null;
+  try {
+    const d = await db.collection('users').doc(uid).get();
+    return d.exists ? { id: d.id, ...d.data() } : null;
+  } catch (e) {
+    console.warn('getUserProfile error:', e.message);
+    return null;
+  }
 }
 
 async function createUserProfile(uid, data) {
@@ -613,25 +628,44 @@ async function createUserProfile(uid, data) {
 }
 
 async function updateUserProfile(uid, data) {
-  await db.collection('users').doc(uid).update({
-    ...data,
-    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-  });
+  try {
+    await db.collection('users').doc(uid).update({
+      ...data,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  } catch (e) {
+    console.warn('updateUserProfile error:', e.message);
+  }
 }
 
 async function getAllUsers() {
-  const s = await db.collection('users').get();
-  return s.docs.map(d => ({ id: d.id, ...d.data() }));
+  try {
+    const s = await db.collection('users').get();
+    return s.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (e) {
+    console.warn('getAllUsers error:', e.message);
+    return [];
+  }
 }
 
 async function getReports() {
-  const s = await db.collection('reports').orderBy('date', 'desc').get();
-  return s.docs.map(d => ({ id: d.id, ...d.data() }));
+  try {
+    const s = await db.collection('reports').orderBy('date', 'desc').get();
+    return s.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (e) {
+    console.warn('getReports error:', e.message);
+    return [];
+  }
 }
 
 async function getSettings() {
-  const d = await db.collection('settings').doc('app').get();
-  return d.exists ? d.data() : { billingActive: false, subscriptionPrice: 5000, subscriptionPeriod: 'monthly' };
+  try {
+    const d = await db.collection('settings').doc('app').get();
+    return d.exists ? d.data() : { billingActive: false, subscriptionPrice: 5000, subscriptionPeriod: 'monthly' };
+  } catch (e) {
+    console.warn('getSettings error:', e.message);
+    return { billingActive: false, subscriptionPrice: 5000, subscriptionPeriod: 'monthly' };
+  }
 }
 
 async function updateSettings(data) {
@@ -641,18 +675,44 @@ async function updateSettings(data) {
 // ============================================================
 // PHOTO HANDLING
 // ============================================================
-function compressImage(file, maxWidth = 800, quality = 0.7) {
-  return new Promise((resolve) => {
+function compressImage(file) {
+  return new Promise((resolve, reject) => {
     const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Erro ao ler ficheiro'));
     reader.onload = (e) => {
       const img = new Image();
+      img.onerror = () => reject(new Error('Erro ao processar imagem'));
       img.onload = () => {
         const canvas = document.createElement('canvas');
         let w = img.width, h = img.height;
-        if (w > maxWidth) { h = (maxWidth / w) * h; w = maxWidth; }
-        canvas.width = w; canvas.height = h;
-        canvas.getContext('2d').drawImage(img, 0, 0, w, h);
-        resolve(canvas.toDataURL('image/jpeg', quality));
+        // Max 400px on longest side to keep base64 small for Firestore
+        const MAX = 400;
+        if (w > h) {
+          if (w > MAX) { h = Math.round((MAX / w) * h); w = MAX; }
+        } else {
+          if (h > MAX) { w = Math.round((MAX / h) * w); h = MAX; }
+        }
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        
+        // Try quality levels until under 80KB
+        let quality = 0.5;
+        let result = canvas.toDataURL('image/jpeg', quality);
+        if (result.length > 100000) {
+          result = canvas.toDataURL('image/jpeg', 0.3);
+        }
+        if (result.length > 100000) {
+          // Shrink further
+          const c2 = document.createElement('canvas');
+          const w2 = Math.round(w * 0.6);
+          const h2 = Math.round(h * 0.6);
+          c2.width = w2; c2.height = h2;
+          c2.getContext('2d').drawImage(img, 0, 0, w2, h2);
+          result = c2.toDataURL('image/jpeg', 0.3);
+        }
+        resolve(result);
       };
       img.src = e.target.result;
     };
@@ -660,27 +720,7 @@ function compressImage(file, maxWidth = 800, quality = 0.7) {
   });
 }
 
-function handlePhotoUpload(inputId, index) {
-  const input = document.getElementById(inputId);
-  if (!input.files[0]) return;
-  
-  const file = input.files[0];
-  if (file.size > 5 * 1024 * 1024) {
-    showToast('Imagem muito grande. Máximo 5MB.', 'error');
-    return;
-  }
-  
-  showLoading('Processando foto...');
-  compressImage(file).then(base64 => {
-    if (index === 'profile') {
-      STATE.profilePhoto = base64;
-    } else {
-      STATE.uploadedPhotos[index] = base64;
-    }
-    hideLoading();
-    render();
-  });
-}
+// Photo upload functions are in the profile section (updateProfilePhoto, addGalleryPhoto)
 
 // ============================================================
 // SUBSCRIPTION CHECK
@@ -724,7 +764,7 @@ function getAISuggestions(user, all) {
   if (!user) return [];
   const target = user.gender === 'M' ? 'F' : 'M';
   return all
-    .filter(u => u.id !== user.id && u.gender === target && u.active !== false && u.profileComplete && (u.photos?.length >= 5 || u.profilePhoto))
+    .filter(u => u.id !== user.id && u.gender === target && u.active !== false && u.profileComplete)
     .map(u => ({ ...u, compat: calculateCompatibility(user, u) }))
     .sort((a, b) => b.compat.score - a.compat.score);
 }
@@ -1082,24 +1122,21 @@ function renderCompleteProfile() {
         <div class="auth-header" style="margin-bottom:32px">
           <span class="auth-logo animate-heartbeat">❤️</span>
           <h1 class="auth-title">Complete seu Perfil</h1>
-          <p class="auth-subtitle">Adicione suas fotos e informações</p>
+          <p class="auth-subtitle">Preencha suas informações para começar</p>
         </div>
         
         <div class="steps">
-          <div class="step ${step>=1?'active':''} ${step>1?'completed':''}"><div class="step-circle">${step>1?'✓':'1'}</div><span class="step-label">Fotos</span></div>
+          <div class="step ${step>=1?'active':''} ${step>1?'completed':''}"><div class="step-circle">${step>1?'✓':'1'}</div><span class="step-label">Dados</span></div>
           <div class="step-line ${step>1?'completed':''}"></div>
-          <div class="step ${step>=2?'active':''} ${step>2?'completed':''}"><div class="step-circle">${step>2?'✓':'2'}</div><span class="step-label">Dados</span></div>
+          <div class="step ${step>=2?'active':''} ${step>2?'completed':''}"><div class="step-circle">${step>2?'✓':'2'}</div><span class="step-label">Sobre</span></div>
           <div class="step-line ${step>2?'completed':''}"></div>
-          <div class="step ${step>=3?'active':''} ${step>3?'completed':''}"><div class="step-circle">${step>3?'✓':'3'}</div><span class="step-label">Sobre</span></div>
-          <div class="step-line ${step>3?'completed':''}"></div>
-          <div class="step ${step>=4?'active':''}"><div class="step-circle">4</div><span class="step-label">Interesses</span></div>
+          <div class="step ${step>=3?'active':''}"><div class="step-circle">3</div><span class="step-label">Interesses</span></div>
         </div>
         
         <div class="auth-card animate-fade">
-          ${step === 1 ? renderPhotoStep() : ''}
-          ${step === 2 ? renderDataStep() : ''}
-          ${step === 3 ? renderAboutStep() : ''}
-          ${step === 4 ? renderInterestsStep() : ''}
+          ${step === 1 ? renderDataStep() : ''}
+          ${step === 2 ? renderAboutStep() : ''}
+          ${step === 3 ? renderInterestsStep() : ''}
         </div>
         
         <div style="text-align:center;margin-top:24px">
@@ -1110,58 +1147,8 @@ function renderCompleteProfile() {
   `;
 }
 
-function renderPhotoStep() {
-  const photos = STATE.uploadedPhotos;
-  const profile = STATE.profilePhoto;
-  
-  return `
-    <h2 style="font-size:1.5rem;font-weight:700;margin-bottom:8px">📸 Suas Fotos</h2>
-    <p style="color:var(--text-secondary);margin-bottom:24px">Adicione sua foto de perfil e pelo menos 5 fotos para sua galeria</p>
-    
-    <div class="photo-upload-grid">
-      <!-- Main profile photo -->
-      <div class="photo-upload-item main-photo ${profile?'has-photo':''}" onclick="document.getElementById('photo-profile').click()">
-        ${profile ? `
-          <img src="${profile}" alt="Perfil">
-          <span class="photo-delete" onclick="event.stopPropagation();deletePhoto('profile')">×</span>
-        ` : `
-          <div class="photo-placeholder">
-            <div class="photo-placeholder-icon">📷</div>
-            <div class="photo-placeholder-text">Foto de Perfil<br><small>(Obrigatória)</small></div>
-          </div>
-        `}
-      </div>
-      <input type="file" id="photo-profile" accept="image/*" style="display:none" onchange="handlePhotoUpload('photo-profile','profile')">
-      
-      <!-- Gallery photos -->
-      ${[0,1,2,3,4,5].map(i => `
-        <div class="photo-upload-item ${photos[i]?'has-photo':''}" onclick="document.getElementById('photo-${i}').click()">
-          ${photos[i] ? `
-            <img src="${photos[i]}" alt="Foto ${i+1}">
-            <span class="photo-delete" onclick="event.stopPropagation();deletePhoto(${i})">×</span>
-          ` : `
-            <div class="photo-placeholder">
-              <div class="photo-placeholder-icon">+</div>
-              <div class="photo-placeholder-text">Foto ${i+1}</div>
-            </div>
-          `}
-        </div>
-        <input type="file" id="photo-${i}" accept="image/*" style="display:none" onchange="handlePhotoUpload('photo-${i}',${i})">
-      `).join('')}
-    </div>
-    
-    <div id="photo-error" class="form-error" style="display:none;margin-top:16px"></div>
-    
-    <p style="color:var(--text-muted);margin-top:16px;font-size:0.95rem">
-      ✓ Foto de perfil + mínimo 5 fotos na galeria<br>
-      ✓ Máximo 5MB por foto
-    </p>
-    
-    <button class="btn btn-primary btn-full btn-lg" style="margin-top:24px" onclick="nextStep()">Próximo →</button>
-  `;
-}
-
 function renderDataStep() {
+  const isFirstStep = STATE.profileStep === 1;
   return `
     <h2 style="font-size:1.5rem;font-weight:700;margin-bottom:24px">📝 Dados Básicos</h2>
     <div class="form-group">
@@ -1187,10 +1174,14 @@ function renderDataStep() {
       <input type="text" id="prof-city" class="form-input" placeholder="Onde você mora?" value="${STATE.userProfile?.city||''}">
     </div>
     <div id="data-error" class="form-error" style="display:none"></div>
-    <div style="display:flex;gap:16px;margin-top:24px">
-      <button class="btn btn-secondary btn-lg" style="flex:1" onclick="prevStep()">← Voltar</button>
-      <button class="btn btn-primary btn-lg" style="flex:1" onclick="nextStep()">Próximo →</button>
-    </div>
+    ${isFirstStep ? `
+      <button class="btn btn-primary btn-full btn-lg" style="margin-top:24px" onclick="nextStep()">Próximo →</button>
+    ` : `
+      <div style="display:flex;gap:16px;margin-top:24px">
+        <button class="btn btn-secondary btn-lg" style="flex:1" onclick="prevStep()">← Voltar</button>
+        <button class="btn btn-primary btn-lg" style="flex:1" onclick="nextStep()">Próximo →</button>
+      </div>
+    `}
   `;
 }
 
@@ -1365,8 +1356,9 @@ function renderMainApp() {
         <nav class="sidebar-nav">
           <div class="nav-item ${STATE.currentPage==='discover'?'active':''}" onclick="setPage('discover')"><span class="nav-icon">🔍</span> Descobrir</div>
           <div class="nav-item ${STATE.currentPage==='suggestions'?'active':''}" onclick="setPage('suggestions')"><span class="nav-icon">🤖</span> Sugestões IA</div>
+          <div class="nav-item ${STATE.currentPage==='ranking'?'active':''}" onclick="setPage('ranking')"><span class="nav-icon">🏆</span> Ranking</div>
           <div class="nav-item ${STATE.currentPage==='matches'?'active':''}" onclick="setPage('matches')"><span class="nav-icon">💕</span> Matches</div>
-          <div class="nav-item ${STATE.currentPage==='chat'?'active':''}" onclick="setPage('chat')"><span class="nav-icon">💬</span> Mensagens</div>
+          <div class="nav-item ${STATE.currentPage==='chat'||STATE.currentPage==='chatroom'?'active':''}" onclick="setPage('chat')"><span class="nav-icon">💬</span> Mensagens</div>
           <div class="nav-item ${STATE.currentPage==='likes'?'active':''}" onclick="setPage('likes')"><span class="nav-icon">❤️</span> Curtidas</div>
           <div class="nav-item ${STATE.currentPage==='profile'?'active':''}" onclick="setPage('profile')"><span class="nav-icon">👤</span> Meu Perfil</div>
           <div class="nav-item ${STATE.currentPage==='settings'?'active':''}" onclick="setPage('settings')"><span class="nav-icon">⚙️</span> Configurações</div>
@@ -1377,12 +1369,12 @@ function renderMainApp() {
         </div>
       </aside>
       
-      <div class="mobile-nav">
+      <div class="mobile-nav" style="${STATE.currentPage === 'chatroom' ? 'display:none!important' : ''}">
         <div class="mobile-nav-items">
           <div class="mobile-nav-item ${STATE.currentPage==='discover'?'active':''}" onclick="setPage('discover')"><span class="mobile-nav-icon">🔍</span><span>Descobrir</span></div>
-          <div class="mobile-nav-item ${STATE.currentPage==='suggestions'?'active':''}" onclick="setPage('suggestions')"><span class="mobile-nav-icon">🤖</span><span>IA</span></div>
-          <div class="mobile-nav-item ${STATE.currentPage==='matches'?'active':''}" onclick="setPage('matches')"><span class="mobile-nav-icon">💕</span><span>Matches</span></div>
-          <div class="mobile-nav-item ${STATE.currentPage==='chat'?'active':''}" onclick="setPage('chat')"><span class="mobile-nav-icon">💬</span><span>Chat</span></div>
+          <div class="mobile-nav-item ${STATE.currentPage==='ranking'?'active':''}" onclick="setPage('ranking')"><span class="mobile-nav-icon">🏆</span><span>Ranking</span></div>
+          <div class="mobile-nav-item ${STATE.currentPage==='chat'||STATE.currentPage==='chatroom'?'active':''}" onclick="setPage('chat')"><span class="mobile-nav-icon">💬</span><span>Chat</span></div>
+          <div class="mobile-nav-item ${STATE.currentPage==='likes'?'active':''}" onclick="setPage('likes')"><span class="mobile-nav-icon">❤️</span><span>Curtidas</span></div>
           <div class="mobile-nav-item ${STATE.currentPage==='profile'?'active':''}" onclick="setPage('profile')"><span class="mobile-nav-icon">👤</span><span>Perfil</span></div>
         </div>
       </div>
@@ -1400,8 +1392,10 @@ function renderCurrentPage() {
   switch (STATE.currentPage) {
     case 'discover': return renderDiscoverPage();
     case 'suggestions': return renderSuggestionsPage();
+    case 'ranking': return renderRankingPage();
     case 'matches': return renderMatchesPage();
     case 'chat': return renderChatPage();
+    case 'chatroom': return renderChatRoom();
     case 'likes': return renderLikesPage();
     case 'profile': return renderProfilePage();
     case 'settings': return renderSettingsPage();
@@ -1446,7 +1440,7 @@ function renderDiscoverPage() {
                 </div>
                 <div class="profile-card-body">
                   <div class="profile-card-name">${u.name}, ${u.age}</div>
-                  <div class="profile-card-info">📍 ${u.city}</div>
+                  <div class="profile-card-info">📍 ${u.city} · ❤️ ${STATE.usersCache.filter(x => (x.likes||[]).includes(u.id)).length} curtidas</div>
                   <div class="profile-card-bio">${u.bio || ''}</div>
                   <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px">
                     ${(u.interests||[]).slice(0,3).map(i => `<span class="badge badge-info">${i}</span>`).join('')}
@@ -1571,36 +1565,206 @@ function renderMatchesPage() {
 // ============================================================
 function renderChatPage() {
   const user = STATE.userProfile;
-  const matches = STATE.usersCache.filter(u => (user.matches||[]).includes(u.id));
+  // Users can chat if they liked each other (match) OR if one liked the other
+  const chatUsers = STATE.usersCache.filter(u => {
+    if (u.id === user.id || !u.profileComplete) return false;
+    const iLiked = (user.likes || []).includes(u.id);
+    const theyLiked = (u.likes || []).includes(user.id);
+    return iLiked || theyLiked;
+  });
+  
+  // Sort: mutual matches first, then online
+  chatUsers.sort((a, b) => {
+    const aMatch = (user.matches || []).includes(a.id) ? 1 : 0;
+    const bMatch = (user.matches || []).includes(b.id) ? 1 : 0;
+    if (bMatch !== aMatch) return bMatch - aMatch;
+    return (b.online ? 1 : 0) - (a.online ? 1 : 0);
+  });
   
   return `
     <div class="page-content">
       <div class="page-header">
         <h1 class="page-title">💬 Mensagens</h1>
+        <p class="page-subtitle">Converse com quem você se interessa</p>
       </div>
-      ${matches.length === 0 ? `
+      ${chatUsers.length === 0 ? `
         <div class="empty-state">
           <span class="empty-state-icon animate-float">💬</span>
           <h3 class="empty-state-title">Nenhuma conversa</h3>
-          <p class="empty-state-text">Faça matches para conversar!</p>
-          <button class="btn btn-primary" onclick="setPage('discover')">🔍 Descobrir</button>
+          <p class="empty-state-text">Curta perfis para poder conversar!</p>
+          <button class="btn btn-primary" onclick="setPage('discover')">🔍 Descobrir Pessoas</button>
         </div>
       ` : `
-        <div style="max-width:600px">
-          ${matches.map(u => `
-            <div class="card" style="margin-bottom:16px;cursor:pointer" onclick="startChat('${u.id}')">
-              <div class="card-body" style="display:flex;align-items:center;gap:20px">
-                ${u.profilePhoto ? `<div class="avatar avatar-md"><img src="${u.profilePhoto}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%"></div>` : Avatar(u, 'md', true)}
-                <div style="flex:1">
-                  <h3 style="font-size:1.125rem;font-weight:600">${u.name}</h3>
-                  <p style="color:var(--text-muted)">Clique para conversar</p>
+        <div style="max-width:700px">
+          ${chatUsers.map(u => {
+            const isMatch = (user.matches || []).includes(u.id);
+            const iLiked = (user.likes || []).includes(u.id);
+            const theyLiked = (u.likes || []).includes(user.id);
+            return `
+            <div class="card" style="margin-bottom:12px;cursor:pointer" onclick="openChat('${u.id}')">
+              <div class="card-body" style="display:flex;align-items:center;gap:20px;padding:20px">
+                ${u.profilePhoto ? `<div class="avatar avatar-md" style="position:relative"><img src="${u.profilePhoto}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">${u.online ? '<span class="avatar-status"></span>' : ''}</div>` : Avatar(u, 'md', true)}
+                <div style="flex:1;min-width:0">
+                  <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">
+                    <h3 style="font-size:1.125rem;font-weight:600">${u.name || 'Sem nome'}</h3>
+                    ${isMatch ? '<span class="badge badge-primary" style="font-size:0.75rem">💕 Match</span>' : ''}
+                  </div>
+                  <p style="color:var(--text-muted);font-size:0.95rem">
+                    ${isMatch ? 'Vocês se curtiram!' : iLiked ? 'Você curtiu' : '💕 Curtiu você'}
+                  </p>
                 </div>
                 ${u.online ? '<span class="badge badge-success">Online</span>' : ''}
+                <span style="font-size:1.25rem;color:var(--text-muted)">›</span>
               </div>
             </div>
-          `).join('')}
+          `}).join('')}
         </div>
       `}
+    </div>
+  `;
+}
+
+// ============================================================
+// CHAT ROOM (Real-time conversation)
+// ============================================================
+function renderChatRoom() {
+  const user = STATE.userProfile;
+  const other = STATE.usersCache.find(u => u.id === STATE.chatWith);
+  if (!other) return '<div class="page-content"><div class="empty-state"><h3 class="empty-state-title">Usuário não encontrado</h3></div></div>';
+  
+  const compat = calculateCompatibility(user, other);
+  const isMatch = (user.matches || []).includes(other.id);
+  const messages = STATE.chatMessages || [];
+  
+  return `
+    <div style="display:flex;flex-direction:column;height:100vh;height:100dvh">
+      <!-- Chat Header -->
+      <div style="padding:16px 24px;background:var(--bg-card);border-bottom:1px solid rgba(255,255,255,0.08);display:flex;align-items:center;gap:16px;flex-shrink:0">
+        <button class="btn btn-secondary" style="padding:10px 16px;border-radius:12px" onclick="setPage('chat')">←</button>
+        <div style="cursor:pointer;display:flex;align-items:center;gap:12px;flex:1" onclick="viewProfile('${other.id}')">
+          ${other.profilePhoto ? `<div class="avatar avatar-sm" style="position:relative"><img src="${other.profilePhoto}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%">${other.online ? '<span class="avatar-status" style="width:12px;height:12px;bottom:0;right:0"></span>' : ''}</div>` : Avatar(other, 'sm', true)}
+          <div>
+            <h3 style="font-size:1.125rem;font-weight:600">${other.name || 'Sem nome'}</h3>
+            <p style="font-size:0.85rem;color:${other.online ? 'var(--online)' : 'var(--text-muted)'}">${other.online ? 'Online agora' : 'Offline'}</p>
+          </div>
+        </div>
+        <span class="badge badge-primary">${compat.score}%</span>
+      </div>
+      
+      <!-- Messages Area -->
+      <div id="chat-messages-area" style="flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:12px">
+        ${messages.length === 0 ? `
+          <div style="text-align:center;padding:40px 20px;margin:auto">
+            <div style="font-size:4rem;margin-bottom:16px">👋</div>
+            <h3 style="font-size:1.25rem;font-weight:600;margin-bottom:8px">Comece a conversa!</h3>
+            <p style="color:var(--text-muted)">Diga olá para ${(other.name || '').split(' ')[0]}</p>
+            ${isMatch ? '<p style="color:var(--primary-light);margin-top:8px;font-weight:500">💕 Vocês são um match!</p>' : ''}
+          </div>
+        ` : messages.map(m => {
+          const isMine = m.from === user.id;
+          return `
+            <div style="display:flex;${isMine ? 'justify-content:flex-end' : 'justify-content:flex-start'}">
+              <div>
+                <div class="chat-bubble ${isMine ? 'chat-bubble-sent' : 'chat-bubble-received'}">
+                  ${escapeHtml(m.text)}
+                </div>
+                <div style="font-size:0.8rem;color:var(--text-muted);margin-top:4px;${isMine ? 'text-align:right' : ''}">${m.timestamp ? timeAgo(m.timestamp) : 'agora'}</div>
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+      
+      <!-- Message Input -->
+      <div style="padding:16px 24px;background:var(--bg-card);border-top:1px solid rgba(255,255,255,0.08);flex-shrink:0">
+        <div style="display:flex;gap:12px;max-width:800px;margin:0 auto">
+          <input type="text" id="chat-msg-input" class="form-input" style="flex:1;padding:14px 20px" placeholder="Escreva uma mensagem..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChatMsg()}">
+          <button class="btn btn-primary" style="padding:14px 24px;border-radius:16px" onclick="sendChatMsg()">
+            Enviar
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// ============================================================
+// RANKING PAGE
+// ============================================================
+function renderRankingPage() {
+  const user = STATE.userProfile;
+  
+  // Calculate likes received for each user
+  const ranked = STATE.usersCache
+    .filter(u => u.profileComplete && u.active !== false && u.id !== user.id)
+    .map(u => {
+      const likesReceived = STATE.usersCache.filter(x => (x.likes || []).includes(u.id)).length;
+      return { ...u, likesReceived };
+    })
+    .sort((a, b) => b.likesReceived - a.likesReceived)
+    .slice(0, 20);
+    
+  // My ranking
+  const myLikes = STATE.usersCache.filter(x => (x.likes || []).includes(user.id)).length;
+  const allRanked = STATE.usersCache
+    .filter(u => u.profileComplete && u.active !== false)
+    .map(u => ({ id: u.id, likes: STATE.usersCache.filter(x => (x.likes || []).includes(u.id)).length }))
+    .sort((a, b) => b.likes - a.likes);
+  const myPosition = allRanked.findIndex(u => u.id === user.id) + 1;
+  
+  return `
+    <div class="page-content">
+      <div class="page-header" style="text-align:center">
+        <h1 class="page-title">🏆 Ranking de Popularidade</h1>
+        <p class="page-subtitle">Os perfis mais curtidos da plataforma</p>
+      </div>
+      
+      <!-- My Position -->
+      <div class="card" style="max-width:700px;margin:0 auto 32px;background:linear-gradient(135deg,rgba(233,30,99,0.15),rgba(156,39,176,0.1));border:2px solid rgba(233,30,99,0.3)">
+        <div class="card-body" style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+          ${user.profilePhoto ? `<div class="avatar avatar-lg"><img src="${user.profilePhoto}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%"></div>` : Avatar(user, 'lg', false)}
+          <div style="flex:1;min-width:150px">
+            <div style="font-size:1.125rem;font-weight:600">Sua Posição</div>
+            <div style="color:var(--text-muted)">Você recebeu <strong style="color:var(--primary-light)">${myLikes}</strong> curtida${myLikes !== 1 ? 's' : ''}</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:3rem;font-weight:800;color:var(--primary-light)">#${myPosition || '-'}</div>
+            <div style="color:var(--text-muted);font-size:0.9rem">no ranking</div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Top Profiles -->
+      <div style="max-width:700px;margin:0 auto">
+        ${ranked.length === 0 ? `
+          <div class="empty-state">
+            <span class="empty-state-icon">🏆</span>
+            <h3 class="empty-state-title">Ranking vazio</h3>
+            <p class="empty-state-text">Ainda não há curtidas suficientes</p>
+          </div>
+        ` : ranked.map((u, i) => {
+          const medals = ['🥇', '🥈', '🥉'];
+          const medal = i < 3 ? medals[i] : '';
+          const isTop3 = i < 3;
+          return `
+          <div class="card" style="margin-bottom:12px;cursor:pointer;${isTop3 ? 'border:1px solid rgba(255,215,0,0.3);background:linear-gradient(135deg,rgba(255,215,0,0.05),transparent)' : ''}" onclick="viewProfile('${u.id}')">
+            <div class="card-body" style="display:flex;align-items:center;gap:20px;padding:20px">
+              <div style="font-size:${isTop3 ? '2rem' : '1.25rem'};width:44px;text-align:center;font-weight:800;color:${isTop3 ? '#FFD700' : 'var(--text-muted)'}">
+                ${medal || '#' + (i + 1)}
+              </div>
+              ${u.profilePhoto ? `<div class="avatar avatar-${isTop3 ? 'lg' : 'md'}"><img src="${u.profilePhoto}" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:50%"></div>` : Avatar(u, isTop3 ? 'lg' : 'md', true)}
+              <div style="flex:1;min-width:0">
+                <h3 style="font-size:${isTop3 ? '1.25rem' : '1.0625rem'};font-weight:700">${u.name || 'Sem nome'}, ${u.age || '?'}</h3>
+                <p style="color:var(--text-muted);font-size:0.95rem">📍 ${u.city || '-'}</p>
+              </div>
+              <div style="text-align:center;min-width:60px">
+                <div style="font-size:${isTop3 ? '1.75rem' : '1.375rem'};font-weight:800;color:var(--primary-light)">❤️ ${u.likesReceived}</div>
+                <div style="color:var(--text-muted);font-size:0.8rem">curtida${u.likesReceived !== 1 ? 's' : ''}</div>
+              </div>
+            </div>
+          </div>
+        `}).join('')}
+      </div>
     </div>
   `;
 }
@@ -1612,12 +1776,33 @@ function renderLikesPage() {
   const user = STATE.userProfile;
   const likedMe = STATE.usersCache.filter(u => (u.likes||[]).includes(user.id));
   const likedByMe = STATE.usersCache.filter(u => (user.likes||[]).includes(u.id));
+  const totalReceived = likedMe.length;
   
   return `
     <div class="page-content">
       <div class="page-header">
         <h1 class="page-title">❤️ Curtidas</h1>
+        <p class="page-subtitle">Você recebeu <strong style="color:var(--primary-light)">${totalReceived}</strong> curtida${totalReceived !== 1 ? 's' : ''}</p>
       </div>
+      
+      <!-- Stats Banner -->
+      <div class="card" style="margin-bottom:24px;background:linear-gradient(135deg,rgba(233,30,99,0.1),rgba(156,39,176,0.05))">
+        <div class="card-body" style="display:flex;align-items:center;justify-content:space-around;flex-wrap:wrap;gap:16px">
+          <div style="text-align:center">
+            <div style="font-size:2.5rem;font-weight:800;color:var(--primary-light)">${totalReceived}</div>
+            <div style="color:var(--text-muted)">Recebidas</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:2.5rem;font-weight:800;color:var(--accent)">${likedByMe.length}</div>
+            <div style="color:var(--text-muted)">Enviadas</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:2.5rem;font-weight:800;color:var(--success)">${(user.matches||[]).length}</div>
+            <div style="color:var(--text-muted)">Matches</div>
+          </div>
+        </div>
+      </div>
+      
       <div style="display:flex;gap:12px;margin-bottom:32px">
         <button class="btn btn-primary" id="tab-received" onclick="switchLikeTab('received')">Recebidas (${likedMe.length})</button>
         <button class="btn btn-secondary" id="tab-sent" onclick="switchLikeTab('sent')">Enviadas (${likedByMe.length})</button>
@@ -1665,7 +1850,8 @@ function renderProfilePage() {
   const user = STATE.userProfile;
   const photos = user.photos || [];
   const photoCount = photos.length;
-  const needsMorePhotos = photoCount < 8;
+  const hasProfilePhoto = !!user.profilePhoto;
+  const needsPhotos = !hasProfilePhoto || photoCount < 5;
   
   return `
     <div class="page-content">
@@ -1675,7 +1861,20 @@ function renderProfilePage() {
       </div>
       
       <!-- Visibility Alert -->
-      ${needsMorePhotos ? `
+      ${!hasProfilePhoto ? `
+        <div class="card" style="background:linear-gradient(135deg,rgba(233,30,99,0.2),rgba(233,30,99,0.1));border:2px solid rgba(233,30,99,0.3);margin-bottom:24px;max-width:900px">
+          <div class="card-body" style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+            <div style="font-size:3rem">🤳</div>
+            <div style="flex:1;min-width:200px">
+              <h3 style="font-size:1.25rem;font-weight:700;color:var(--primary-light);margin-bottom:4px">Adicione uma foto de perfil!</h3>
+              <p style="color:var(--text-secondary)">Perfis com foto recebem <strong>10x mais interesse</strong>. Mostre quem você é!</p>
+            </div>
+            <button class="btn btn-primary" onclick="openPhotoManager()">
+              📷 Adicionar Foto
+            </button>
+          </div>
+        </div>
+      ` : needsPhotos ? `
         <div class="card" style="background:linear-gradient(135deg,rgba(255,152,0,0.2),rgba(255,193,7,0.1));border:2px solid rgba(255,152,0,0.3);margin-bottom:24px;max-width:900px">
           <div class="card-body" style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
             <div style="font-size:3rem">📸</div>
@@ -1702,7 +1901,7 @@ function renderProfilePage() {
               ` : Avatar(user, 'xl', false)}
               <div style="position:absolute;bottom:0;right:0;width:36px;height:36px;background:var(--primary);border-radius:50%;display:flex;align-items:center;justify-content:center;border:3px solid var(--bg-card);font-size:1rem">📷</div>
             </div>
-            <input type="file" id="edit-profile-photo" accept="image/*" style="display:none" onchange="updateProfilePhoto(this)">
+            <input type="file" id="edit-profile-photo" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="updateProfilePhoto(this)">
           </div>
           
           <!-- Edit Photos Button -->
@@ -1840,7 +2039,7 @@ function renderPhotoManager() {
                 <button class="btn btn-primary btn-sm" onclick="document.getElementById('manager-profile-photo').click()">
                   ${user.profilePhoto ? '🔄 Trocar Foto' : '📷 Adicionar Foto'}
                 </button>
-                <input type="file" id="manager-profile-photo" accept="image/*" style="display:none" onchange="updateProfilePhoto(this)">
+                <input type="file" id="manager-profile-photo" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="updateProfilePhoto(this)">
                 <p style="color:var(--text-muted);font-size:0.9rem;margin-top:8px">Esta é a foto principal do seu perfil</p>
               </div>
             </div>
@@ -1853,7 +2052,7 @@ function renderPhotoManager() {
               <button class="btn btn-primary btn-sm" onclick="document.getElementById('add-gallery-photo').click()" ${photos.length >= 12 ? 'disabled' : ''}>
                 + Adicionar Foto
               </button>
-              <input type="file" id="add-gallery-photo" accept="image/*" style="display:none" onchange="addGalleryPhoto(this)">
+              <input type="file" id="add-gallery-photo" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="addGalleryPhoto(this)">
             </div>
             
             <div class="photo-upload-grid" style="grid-template-columns:repeat(4, 1fr)">
@@ -2432,7 +2631,15 @@ function renderAdminPage() {
 // EVENT HANDLERS
 // ============================================================
 function goTo(page) { STATE.currentPage = page; render(); }
-function setPage(page) { STATE.currentPage = page; render(); }
+function setPage(page) {
+  // Cleanup chat listener when leaving chatroom
+  if (STATE.currentPage === 'chatroom' && page !== 'chatroom') {
+    if (chatUnsubscribe) { chatUnsubscribe(); chatUnsubscribe = null; }
+    STATE.chatMessages = [];
+  }
+  STATE.currentPage = page;
+  render();
+}
 function togglePw(id, icon) { const i = document.getElementById(id); i.type = i.type === 'password' ? 'text' : 'password'; icon.textContent = i.type === 'password' ? '👁️' : '🙈'; }
 function updatePwStrength() {
   const p = document.getElementById('reg-password')?.value || '';
@@ -2447,20 +2654,11 @@ function toggleInterest(i, btn) {
   else { STATE.selectedInterests.push(i); btn.classList.add('selected'); }
   const c = document.getElementById('interest-count'); if (c) c.textContent = STATE.selectedInterests.length;
 }
-function deletePhoto(index) {
-  if (index === 'profile') STATE.profilePhoto = null;
-  else STATE.uploadedPhotos[index] = null;
-  render();
-}
 function prevStep() { STATE.profileStep--; render(); }
 function nextStep() {
   const step = STATE.profileStep;
+  
   if (step === 1) {
-    if (!STATE.profilePhoto) { document.getElementById('photo-error').style.display = 'flex'; document.getElementById('photo-error').textContent = '⚠ Adicione uma foto de perfil'; return; }
-    const validPhotos = STATE.uploadedPhotos.filter(p => p);
-    if (validPhotos.length < 5) { document.getElementById('photo-error').style.display = 'flex'; document.getElementById('photo-error').textContent = '⚠ Adicione pelo menos 5 fotos na galeria'; return; }
-  }
-  if (step === 2) {
     const name = document.getElementById('prof-name')?.value?.trim();
     const age = document.getElementById('prof-age')?.value;
     const gender = document.getElementById('prof-gender')?.value;
@@ -2475,7 +2673,8 @@ function nextStep() {
     STATE.userProfile.gender = gender;
     STATE.userProfile.city = Validate.sanitize(city);
   }
-  if (step === 3) {
+  
+  if (step === 2) {
     const bio = document.getElementById('prof-bio')?.value?.trim();
     if (!Validate.bio(bio)) {
       document.getElementById('about-error').style.display = 'flex';
@@ -2491,6 +2690,7 @@ function nextStep() {
     STATE.userProfile.drink = document.getElementById('prof-drink')?.value;
     STATE.userProfile.children = document.getElementById('prof-children')?.value;
   }
+  
   STATE.profileStep++;
   render();
 }
@@ -2503,11 +2703,8 @@ async function finishProfile() {
   }
   showLoading('Salvando perfil...');
   try {
-    const photos = STATE.uploadedPhotos.filter(p => p);
     const data = {
       ...STATE.userProfile,
-      profilePhoto: STATE.profilePhoto,
-      photos: photos,
       interests: STATE.selectedInterests,
       lookingFor: document.getElementById('prof-looking')?.value,
       profileComplete: true,
@@ -2515,10 +2712,10 @@ async function finishProfile() {
     };
     await updateUserProfile(STATE.currentUser.uid, data);
     STATE.userProfile = data;
-    STATE.currentPage = 'suggestions';
+    STATE.currentPage = 'discover';
     STATE.usersCache = await getAllUsers();
     hideLoading();
-    showToast('Perfil completo!', 'success');
+    showToast('Perfil completo! Adicione fotos no seu perfil para ter mais visibilidade.', 'success', 6000);
     render();
   } catch (e) { hideLoading(); handleError(e); }
 }
@@ -2534,27 +2731,62 @@ async function handleRegister(e) {
   if (!Validate.password(pw)) { showToast('Senha deve ter 6+ caracteres', 'error'); return; }
   if (pw !== pw2) { showToast('Senhas não conferem', 'error'); return; }
   showLoading('Criando conta...');
+  
+  // Block onAuthStateChanged from running during registration
+  isRegistering = true;
+  
   try {
-    const isFirst = await checkFirstUser();
+    // Step 1: Check if first user BEFORE creating auth account
+    let isFirst = false;
+    try {
+      isFirst = await checkFirstUser();
+    } catch (err) {
+      console.warn('Could not check first user, defaulting to false');
+    }
+    
+    // Step 2: Create Firebase Auth account
     const cred = await auth.createUserWithEmailAndPassword(email, pw);
-    await createUserProfile(cred.user.uid, {
-      username: Validate.sanitize(username), email, isAdmin: isFirst, verified: isFirst,
-      active: true, online: true, profileComplete: false, avatarColor: generateColor(email),
-      likes: [], matches: [],
-      subscriptionExpiry: isFirst ? null : firebase.firestore.Timestamp.fromDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)) // 7 days trial
-    });
+    
+    // Step 3: Create Firestore profile IMMEDIATELY after auth
+    const profileData = {
+      username: Validate.sanitize(username),
+      email: email,
+      isAdmin: isFirst,
+      verified: isFirst,
+      active: true,
+      online: true,
+      profileComplete: false,
+      avatarColor: generateColor(email),
+      likes: [],
+      matches: [],
+      subscriptionExpiry: isFirst ? null : firebase.firestore.Timestamp.fromDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000))
+    };
+    
+    await createUserProfile(cred.user.uid, profileData);
+    
+    // Step 4: Set local state
     STATE.currentUser = cred.user;
-    STATE.userProfile = await getUserProfile(cred.user.uid);
-    STATE.settingsCache = await getSettings();
+    STATE.userProfile = { id: cred.user.uid, ...profileData };
     STATE.profileStep = 1;
     STATE.selectedInterests = [];
     STATE.uploadedPhotos = [];
     STATE.profilePhoto = null;
+    
+    // Step 5: Load settings (with fallback)
+    STATE.settingsCache = await getSettings();
+    
+    // Release the flag
+    isRegistering = false;
+    
     hideLoading();
-    if (isFirst) showToast('🎉 Você é o Administrador!', 'success', 6000);
-    else showToast('Conta criada! Complete seu perfil.', 'success');
+    if (isFirst) showToast('🎉 Você é o Administrador do sistema!', 'success', 6000);
+    else showToast('Conta criada com sucesso! Complete seu perfil.', 'success');
     render();
-  } catch (e) { hideLoading(); handleError(e); }
+  } catch (e) {
+    isRegistering = false;
+    hideLoading();
+    handleError(e);
+  }
 }
 
 async function handleLogin(e) {
@@ -2564,12 +2796,32 @@ async function handleLogin(e) {
   if (!Validate.email(email)) { showToast('Email inválido', 'error'); return; }
   if (!pw) { showToast('Digite a senha', 'error'); return; }
   showLoading('Entrando...');
+  
+  // Block onAuthStateChanged during login
+  isRegistering = true;
+  
   try {
     const cred = await auth.signInWithEmailAndPassword(email, pw);
     const profile = await getUserProfile(cred.user.uid);
-    if (!profile) { hideLoading(); showToast('Perfil não encontrado', 'error'); return; }
-    if (profile.active === false) { hideLoading(); showToast('Conta desativada', 'error'); await auth.signOut(); return; }
+    
+    if (!profile) {
+      isRegistering = false;
+      hideLoading();
+      showToast('Perfil não encontrado. Crie uma nova conta.', 'error');
+      await auth.signOut();
+      return;
+    }
+    
+    if (profile.active === false) {
+      isRegistering = false;
+      hideLoading();
+      showToast('Sua conta foi desativada. Contacte o suporte.', 'error');
+      await auth.signOut();
+      return;
+    }
+    
     await updateUserProfile(cred.user.uid, { online: true });
+    
     STATE.currentUser = cred.user;
     STATE.userProfile = { ...profile, online: true };
     STATE.currentPage = profile.profileComplete ? 'discover' : 'complete-profile';
@@ -2580,10 +2832,16 @@ async function handleLogin(e) {
     STATE.usersCache = await getAllUsers();
     STATE.reportsCache = await getReports();
     STATE.settingsCache = await getSettings();
+    
+    isRegistering = false;
     hideLoading();
     showToast(`Bem-vindo, ${(profile.name || profile.username || '').split(' ')[0]}!`, 'success');
     render();
-  } catch (e) { hideLoading(); handleError(e); }
+  } catch (e) {
+    isRegistering = false;
+    hideLoading();
+    handleError(e);
+  }
 }
 
 async function handleForgot(e) {
@@ -2597,8 +2855,18 @@ async function handleForgot(e) {
 
 async function handleLogout() {
   showLoading('Saindo...');
-  try { if (STATE.currentUser) await updateUserProfile(STATE.currentUser.uid, { online: false }); await auth.signOut(); STATE.currentUser = null; STATE.userProfile = null; STATE.currentPage = 'landing'; hideLoading(); render(); }
-  catch (e) { hideLoading(); handleError(e); }
+  // Cleanup chat listener
+  if (chatUnsubscribe) { chatUnsubscribe(); chatUnsubscribe = null; }
+  try {
+    if (STATE.currentUser) await updateUserProfile(STATE.currentUser.uid, { online: false });
+    await auth.signOut();
+    STATE.currentUser = null;
+    STATE.userProfile = null;
+    STATE.currentPage = 'landing';
+    STATE.chatMessages = [];
+    hideLoading();
+    render();
+  } catch (e) { hideLoading(); handleError(e); }
 }
 
 function confirmDeactivate() {
@@ -2703,7 +2971,96 @@ async function likeUser(userId) {
 function viewProfile(id) { STATE.selectedProfile = id; render(); }
 function closeModal() { STATE.selectedProfile = null; render(); }
 function closeMatchAnimation() { STATE.matchAnimation = null; render(); }
-function startChat(id) { STATE.chatWith = id; setPage('chat'); showToast('Chat em desenvolvimento', 'info'); }
+function startChat(id) { openChat(id); }
+
+async function openChat(userId) {
+  STATE.chatWith = userId;
+  STATE.chatMessages = [];
+  STATE.currentPage = 'chatroom';
+  render();
+  
+  // Load existing messages
+  await loadChatMessages(userId);
+  
+  // Start real-time listener
+  listenToChat(userId);
+}
+
+async function loadChatMessages(userId) {
+  try {
+    const chatId = [STATE.currentUser.uid, userId].sort().join('_');
+    const snapshot = await db.collection('chats').doc(chatId).collection('messages')
+      .orderBy('timestamp', 'asc')
+      .limitToLast(100)
+      .get();
+    STATE.chatMessages = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    render();
+    scrollChatToBottom();
+  } catch (e) {
+    console.warn('loadChatMessages:', e.message);
+  }
+}
+
+let chatUnsubscribe = null;
+
+function listenToChat(userId) {
+  // Unsubscribe previous listener
+  if (chatUnsubscribe) { chatUnsubscribe(); chatUnsubscribe = null; }
+  
+  try {
+    const chatId = [STATE.currentUser.uid, userId].sort().join('_');
+    chatUnsubscribe = db.collection('chats').doc(chatId).collection('messages')
+      .orderBy('timestamp', 'asc')
+      .onSnapshot(snapshot => {
+        STATE.chatMessages = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+        if (STATE.currentPage === 'chatroom' && STATE.chatWith === userId) {
+          render();
+          scrollChatToBottom();
+        }
+      }, err => {
+        console.warn('Chat listener error:', err.message);
+      });
+  } catch (e) {
+    console.warn('listenToChat:', e.message);
+  }
+}
+
+function scrollChatToBottom() {
+  setTimeout(() => {
+    const area = document.getElementById('chat-messages-area');
+    if (area) area.scrollTop = area.scrollHeight;
+  }, 100);
+}
+
+async function sendChatMsg() {
+  const input = document.getElementById('chat-msg-input');
+  if (!input || !STATE.currentUser || !STATE.chatWith) return;
+  
+  const text = input.value.trim();
+  if (!text) return;
+  
+  input.value = '';
+  input.focus();
+  
+  try {
+    const chatId = [STATE.currentUser.uid, STATE.chatWith].sort().join('_');
+    await db.collection('chats').doc(chatId).collection('messages').add({
+      from: STATE.currentUser.uid,
+      to: STATE.chatWith,
+      text: Validate.sanitize(text),
+      timestamp: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  } catch (e) {
+    showToast('Erro ao enviar mensagem', 'error');
+    console.error(e);
+  }
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
 function switchLikeTab(tab) {
   document.getElementById('tab-received').className = tab === 'received' ? 'btn btn-primary' : 'btn btn-secondary';
   document.getElementById('tab-sent').className = tab === 'sent' ? 'btn btn-primary' : 'btn btn-secondary';
@@ -2739,50 +3096,99 @@ function closeEditProfile() {
 }
 
 async function updateProfilePhoto(input) {
-  if (!input.files[0]) return;
+  if (!input.files || !input.files[0]) return;
   const file = input.files[0];
-  if (file.size > 5 * 1024 * 1024) {
-    showToast('Imagem muito grande. Máximo 5MB.', 'error');
+  
+  // Validate file type
+  if (!file.type.startsWith('image/')) {
+    showToast('Selecione um ficheiro de imagem válido.', 'error');
+    input.value = '';
     return;
   }
+  if (file.size > 10 * 1024 * 1024) {
+    showToast('Imagem muito grande. Máximo 10MB.', 'error');
+    input.value = '';
+    return;
+  }
+  
   showLoading('Processando foto...');
   try {
     const base64 = await compressImage(file);
-    await updateUserProfile(STATE.currentUser.uid, { profilePhoto: base64 });
+    
+    // Save only profile photo (separate update to avoid document size issues)
+    await db.collection('users').doc(STATE.currentUser.uid).update({
+      profilePhoto: base64,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    
     STATE.userProfile.profilePhoto = base64;
+    input.value = '';
     hideLoading();
     showToast('Foto de perfil atualizada!', 'success');
     render();
   } catch (e) {
     hideLoading();
-    handleError(e);
+    input.value = '';
+    console.error('updateProfilePhoto error:', e);
+    if (e.message && e.message.includes('exceeds the maximum')) {
+      showToast('Imagem ainda muito grande. Tente uma foto menor.', 'error');
+    } else {
+      showToast('Erro ao salvar foto. Tente com uma imagem menor.', 'error');
+    }
   }
 }
 
 async function addGalleryPhoto(input) {
-  if (!input.files[0]) return;
+  if (!input.files || !input.files[0]) return;
   const file = input.files[0];
-  if (file.size > 5 * 1024 * 1024) {
-    showToast('Imagem muito grande. Máximo 5MB.', 'error');
+  
+  if (!file.type.startsWith('image/')) {
+    showToast('Selecione um ficheiro de imagem válido.', 'error');
+    input.value = '';
     return;
   }
-  const photos = STATE.userProfile.photos || [];
-  if (photos.length >= 12) {
+  if (file.size > 10 * 1024 * 1024) {
+    showToast('Imagem muito grande. Máximo 10MB.', 'error');
+    input.value = '';
+    return;
+  }
+  
+  const currentPhotos = STATE.userProfile.photos || [];
+  if (currentPhotos.length >= 12) {
     showToast('Máximo de 12 fotos na galeria.', 'warning');
+    input.value = '';
     return;
   }
+  
   showLoading('Processando foto...');
   try {
     const base64 = await compressImage(file);
-    photos.push(base64);
-    await updateUserProfile(STATE.currentUser.uid, { photos });
-    STATE.userProfile.photos = photos;
+    const updatedPhotos = [...currentPhotos, base64];
+    
+    // Check total document size estimate (each photo ~50-80KB base64)
+    const totalSize = updatedPhotos.reduce((sum, p) => sum + (p ? p.length : 0), 0);
+    if (totalSize > 900000) {
+      hideLoading();
+      input.value = '';
+      showToast('Limite de armazenamento atingido. Remova fotos antigas primeiro.', 'warning');
+      return;
+    }
+    
+    await db.collection('users').doc(STATE.currentUser.uid).update({
+      photos: updatedPhotos,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    
+    STATE.userProfile.photos = updatedPhotos;
+    input.value = '';
     hideLoading();
     showToast('Foto adicionada!', 'success');
     render();
   } catch (e) {
     hideLoading();
-    handleError(e);
+    input.value = '';
+    console.error('addGalleryPhoto error:', e);
+    showToast('Erro ao salvar foto. Tente com uma imagem menor.', 'error');
   }
 }
 
@@ -2790,16 +3196,20 @@ async function removeGalleryPhoto(index) {
   if (!confirm('Remover esta foto?')) return;
   showLoading('Removendo...');
   try {
-    const photos = STATE.userProfile.photos || [];
+    const photos = [...(STATE.userProfile.photos || [])];
     photos.splice(index, 1);
-    await updateUserProfile(STATE.currentUser.uid, { photos });
+    await db.collection('users').doc(STATE.currentUser.uid).update({
+      photos: photos,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
     STATE.userProfile.photos = photos;
     hideLoading();
     showToast('Foto removida!', 'success');
     render();
   } catch (e) {
     hideLoading();
-    handleError(e);
+    console.error('removeGalleryPhoto error:', e);
+    showToast('Erro ao remover foto.', 'error');
   }
 }
 
@@ -2910,13 +3320,32 @@ document.addEventListener('input', e => {
 
 // Auth state listener
 auth.onAuthStateChanged(async user => {
+  // Skip if we are in the middle of registering
+  // handleRegister will set state itself
+  if (isRegistering) return;
+  
   if (user) {
     showLoading('Carregando...');
     try {
-      const profile = await getUserProfile(user.uid);
+      // Wait a moment for Firestore document to be ready
+      let profile = await getUserProfile(user.uid);
+      
+      // If profile not found, wait and retry once (may still be writing)
+      if (!profile) {
+        await new Promise(r => setTimeout(r, 1500));
+        profile = await getUserProfile(user.uid);
+      }
+      
       if (profile) {
-        if (profile.active === false) { await auth.signOut(); hideLoading(); return; }
+        if (profile.active === false) {
+          showToast('Conta desativada', 'error');
+          await auth.signOut();
+          hideLoading();
+          return;
+        }
+        
         await updateUserProfile(user.uid, { online: true });
+        
         STATE.currentUser = user;
         STATE.userProfile = { ...profile, online: true };
         STATE.currentPage = profile.profileComplete ? 'discover' : 'complete-profile';
@@ -2926,8 +3355,14 @@ auth.onAuthStateChanged(async user => {
         STATE.usersCache = await getAllUsers();
         STATE.reportsCache = await getReports();
         STATE.settingsCache = await getSettings();
+      } else {
+        // Profile still not found - user auth exists but no Firestore doc
+        // This can happen if registration was interrupted
+        console.warn('Auth user exists but no Firestore profile found');
       }
-    } catch (e) { console.error(e); }
+    } catch (e) {
+      console.error('onAuthStateChanged error:', e);
+    }
     hideLoading();
   } else {
     STATE.currentUser = null;
