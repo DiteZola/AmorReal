@@ -506,10 +506,48 @@ const STATE = {
   profilePhoto: null,
   showPhotoManager: false,
   showEditProfile: false,
-  chatMessages: []
+  chatMessages: [],
+  notificationsCache: []
 };
 
 const WHATSAPP_NUMBER = '929250600';
+
+// ============================================================
+// WHATSAPP ADMIN NOTIFICATION
+// ============================================================
+function notifyAdminWhatsApp(type, userName, userEmail) {
+  try {
+    let message = '';
+    const now = new Date().toLocaleString('pt-BR');
+    
+    if (type === 'register') {
+      message = `🆕 *Novo cadastro no AmorReal!*%0A%0A👤 Nome: ${encodeURIComponent(userName)}%0A📧 Email: ${encodeURIComponent(userEmail)}%0A🕐 Data: ${encodeURIComponent(now)}`;
+    } else if (type === 'login') {
+      message = `🟢 *Usuário entrou no AmorReal*%0A%0A👤 ${encodeURIComponent(userName)}%0A📧 ${encodeURIComponent(userEmail)}%0A🕐 ${encodeURIComponent(now)}`;
+    }
+    
+    // Send via hidden iframe to avoid redirecting the user
+    const url = `https://api.whatsapp.com/send?phone=${WHATSAPP_NUMBER}&text=${message}`;
+    
+    // Use Fetch API to try CallMeBot or similar free WhatsApp API
+    // Since we can't send WhatsApp messages from browser directly without user interaction,
+    // we'll log it to Firestore and the admin can check the notifications
+    db.collection('notifications').add({
+      type: type,
+      userName: userName,
+      userEmail: userEmail,
+      message: type === 'register' 
+        ? `🆕 Novo cadastro: ${userName} (${userEmail})` 
+        : `🟢 ${userName} entrou no sistema`,
+      timestamp: firebase.firestore.FieldValue.serverTimestamp(),
+      read: false,
+      whatsappUrl: url
+    }).catch(e => console.warn('Notification save error:', e));
+    
+  } catch (e) {
+    console.warn('notifyAdmin error:', e);
+  }
+}
 
 // ============================================================
 // HELPERS
@@ -767,6 +805,21 @@ function getAISuggestions(user, all) {
     .filter(u => u.id !== user.id && u.gender === target && u.active !== false && u.profileComplete)
     .map(u => ({ ...u, compat: calculateCompatibility(user, u) }))
     .sort((a, b) => b.compat.score - a.compat.score);
+}
+
+function getAIChatTip(user, other) {
+  const compat = calculateCompatibility(user, other);
+  const name = (other.name || '').split(' ')[0];
+  const tips = [
+    `Vocês têm ${compat.shared.length} interesses em comum! Fale sobre ${compat.shared[0] || 'os seus hobbies'} 😊`,
+    `${compat.score}% de compatibilidade! Pergunte sobre ${(other.interests || ['o dia a dia'])[0]}`,
+    `${name} gosta de ${(other.interests || []).slice(0,2).join(' e ')}. Use isso para quebrar o gelo!`,
+    `Dica: Seja autêntico! Compartilhe algo pessoal para criar conexão real.`,
+    `Que tal perguntar sobre os sonhos e planos de ${name}?`,
+    `Perfis com fotos recebem mais respostas! Envie uma foto do seu dia 📷`,
+    `Elogie algo específico do perfil de ${name} — funciona melhor que um "oi"!`
+  ];
+  return tips[Math.floor(Math.random() * tips.length)];
 }
 
 // ============================================================
@@ -1372,9 +1425,9 @@ function renderMainApp() {
       <div class="mobile-nav" style="${STATE.currentPage === 'chatroom' ? 'display:none!important' : ''}">
         <div class="mobile-nav-items">
           <div class="mobile-nav-item ${STATE.currentPage==='discover'?'active':''}" onclick="setPage('discover')"><span class="mobile-nav-icon">🔍</span><span>Descobrir</span></div>
+          <div class="mobile-nav-item ${STATE.currentPage==='suggestions'?'active':''}" onclick="setPage('suggestions')"><span class="mobile-nav-icon">🤖</span><span>IA</span></div>
           <div class="mobile-nav-item ${STATE.currentPage==='ranking'?'active':''}" onclick="setPage('ranking')"><span class="mobile-nav-icon">🏆</span><span>Ranking</span></div>
           <div class="mobile-nav-item ${STATE.currentPage==='chat'||STATE.currentPage==='chatroom'?'active':''}" onclick="setPage('chat')"><span class="mobile-nav-icon">💬</span><span>Chat</span></div>
-          <div class="mobile-nav-item ${STATE.currentPage==='likes'?'active':''}" onclick="setPage('likes')"><span class="mobile-nav-icon">❤️</span><span>Curtidas</span></div>
           <div class="mobile-nav-item ${STATE.currentPage==='profile'?'active':''}" onclick="setPage('profile')"><span class="mobile-nav-icon">👤</span><span>Perfil</span></div>
         </div>
       </div>
@@ -1651,6 +1704,14 @@ function renderChatRoom() {
         <span class="badge badge-primary">${compat.score}%</span>
       </div>
       
+      <!-- AI Tip -->
+      <div style="padding:12px 24px;background:linear-gradient(135deg,rgba(156,39,176,0.1),rgba(233,30,99,0.08));border-bottom:1px solid rgba(255,255,255,0.05);flex-shrink:0">
+        <p style="font-size:0.95rem;color:var(--text-secondary);display:flex;align-items:flex-start;gap:10px">
+          <span style="font-size:1.25rem">🤖</span>
+          <span><strong style="color:var(--primary-light)">Dica da IA:</strong> ${getAIChatTip(user, other)}</span>
+        </p>
+      </div>
+      
       <!-- Messages Area -->
       <div id="chat-messages-area" style="flex:1;overflow-y:auto;padding:20px 24px;display:flex;flex-direction:column;gap:12px">
         ${messages.length === 0 ? `
@@ -1662,12 +1723,20 @@ function renderChatRoom() {
           </div>
         ` : messages.map(m => {
           const isMine = m.from === user.id;
+          const isPhoto = m.type === 'photo' && m.photoUrl;
           return `
             <div style="display:flex;${isMine ? 'justify-content:flex-end' : 'justify-content:flex-start'}">
-              <div>
-                <div class="chat-bubble ${isMine ? 'chat-bubble-sent' : 'chat-bubble-received'}">
-                  ${escapeHtml(m.text)}
-                </div>
+              <div style="max-width:80%">
+                ${isPhoto ? `
+                  <div style="cursor:pointer;border-radius:16px;overflow:hidden;${isMine ? 'border-bottom-right-radius:4px' : 'border-bottom-left-radius:4px'}" onclick="openLightbox(0,[${JSON.stringify(m.photoUrl).replace(/"/g, '&quot;')}])">
+                    <img src="${m.photoUrl}" alt="Foto" style="max-width:100%;max-height:300px;display:block;border-radius:inherit">
+                  </div>
+                  ${m.text ? `<div class="chat-bubble ${isMine ? 'chat-bubble-sent' : 'chat-bubble-received'}" style="margin-top:4px">${escapeHtml(m.text)}</div>` : ''}
+                ` : `
+                  <div class="chat-bubble ${isMine ? 'chat-bubble-sent' : 'chat-bubble-received'}">
+                    ${escapeHtml(m.text)}
+                  </div>
+                `}
                 <div style="font-size:0.8rem;color:var(--text-muted);margin-top:4px;${isMine ? 'text-align:right' : ''}">${m.timestamp ? timeAgo(m.timestamp) : 'agora'}</div>
               </div>
             </div>
@@ -1675,11 +1744,24 @@ function renderChatRoom() {
         }).join('')}
       </div>
       
+      <!-- Photo Preview -->
+      <div id="chat-photo-preview" style="display:none;padding:12px 24px;background:var(--bg-card-light);border-top:1px solid rgba(255,255,255,0.08);flex-shrink:0">
+        <div style="display:flex;align-items:center;gap:12px;max-width:800px;margin:0 auto">
+          <img id="chat-photo-preview-img" src="" alt="" style="width:60px;height:60px;object-fit:cover;border-radius:12px">
+          <div style="flex:1;color:var(--text-secondary);font-size:0.95rem">📷 Foto pronta para enviar</div>
+          <button class="btn btn-secondary btn-sm" onclick="cancelChatPhoto()" style="padding:8px 16px">✕</button>
+        </div>
+      </div>
+      
       <!-- Message Input -->
       <div style="padding:16px 24px;background:var(--bg-card);border-top:1px solid rgba(255,255,255,0.08);flex-shrink:0">
-        <div style="display:flex;gap:12px;max-width:800px;margin:0 auto">
+        <div style="display:flex;gap:12px;max-width:800px;margin:0 auto;align-items:center">
+          <button class="btn btn-secondary" style="padding:14px;border-radius:16px;font-size:1.25rem;flex-shrink:0" onclick="document.getElementById('chat-photo-input').click()" title="Enviar foto">
+            📷
+          </button>
+          <input type="file" id="chat-photo-input" accept="image/jpeg,image/png,image/webp" style="display:none" onchange="prepareChatPhoto(this)">
           <input type="text" id="chat-msg-input" class="form-input" style="flex:1;padding:14px 20px" placeholder="Escreva uma mensagem..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChatMsg()}">
-          <button class="btn btn-primary" style="padding:14px 24px;border-radius:16px" onclick="sendChatMsg()">
+          <button class="btn btn-primary" style="padding:14px 24px;border-radius:16px;flex-shrink:0" onclick="sendChatMsg()">
             Enviar
           </button>
         </div>
@@ -2344,48 +2426,115 @@ function renderProfileModal() {
   const user = STATE.userProfile;
   const compat = calculateCompatibility(user, u);
   const photos = u.photos || [];
+  const allPhotos = u.profilePhoto ? [u.profilePhoto, ...photos] : photos;
+  const likesReceived = STATE.usersCache.filter(x => (x.likes||[]).includes(u.id)).length;
+  const isLiked = (user.likes||[]).includes(u.id);
+  const isMatch = (user.matches||[]).includes(u.id);
   
   return `
     <div class="modal-overlay" onclick="closeModal()">
-      <div class="modal-content" onclick="event.stopPropagation()">
-        <div style="height:250px;position:relative;overflow:hidden">
-          ${u.profilePhoto ? `<img src="${u.profilePhoto}" alt="" style="width:100%;height:100%;object-fit:cover">` : `<div style="width:100%;height:100%;background:linear-gradient(135deg,${u.avatarColor||generateColor(u.name)}88,${u.avatarColor||generateColor(u.name)}33);display:flex;align-items:center;justify-content:center">${Avatar(u, 'xl', false)}</div>`}
-          <button class="modal-close" onclick="closeModal()">×</button>
-          <div style="position:absolute;bottom:20px;right:20px;background:rgba(0,0,0,0.7);padding:12px 20px;border-radius:50px">
+      <div class="modal-content" style="max-width:700px" onclick="event.stopPropagation()">
+        <!-- Cover Photo -->
+        <div style="height:280px;position:relative;overflow:hidden;cursor:pointer" onclick="${u.profilePhoto ? `openLightbox(0, ${JSON.stringify(allPhotos).replace(/"/g, '&quot;')})` : ''}">
+          ${u.profilePhoto 
+            ? `<img src="${u.profilePhoto}" alt="" style="width:100%;height:100%;object-fit:cover">` 
+            : `<div style="width:100%;height:100%;background:linear-gradient(135deg,${u.avatarColor||generateColor(u.name)}88,${u.avatarColor||generateColor(u.name)}22);display:flex;align-items:center;justify-content:center">${Avatar(u, 'xl', false)}</div>`
+          }
+          <div style="position:absolute;inset:0;background:linear-gradient(transparent 50%,rgba(0,0,0,0.7))"></div>
+          <button class="modal-close" onclick="event.stopPropagation();closeModal()">×</button>
+          
+          <!-- Name overlay on photo -->
+          <div style="position:absolute;bottom:20px;left:24px;right:24px">
+            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px">
+              <h2 style="font-size:2rem;font-weight:700;text-shadow:0 2px 8px rgba(0,0,0,0.5)">${u.name || 'Sem nome'}, ${u.age || '?'}</h2>
+              ${u.verified ? '<span class="badge badge-info">✓ Verificado</span>' : ''}
+              ${u.online ? '<span class="badge badge-success">🟢 Online</span>' : ''}
+              ${isMatch ? '<span class="badge badge-primary">💕 Match</span>' : ''}
+            </div>
+            <p style="color:rgba(255,255,255,0.8);text-shadow:0 1px 4px rgba(0,0,0,0.5)">📍 ${u.city || '-'} · ❤️ ${likesReceived} curtida${likesReceived !== 1 ? 's' : ''}</p>
+          </div>
+          
+          <!-- Compatibility badge -->
+          <div style="position:absolute;top:20px;left:20px;background:rgba(0,0,0,0.7);padding:10px 18px;border-radius:50px;backdrop-filter:blur(10px)">
             <span style="color:var(--primary-light);font-weight:700;font-size:1.25rem">${compat.score}%</span>
+            <span style="color:rgba(255,255,255,0.7);font-size:0.9rem"> match</span>
           </div>
         </div>
-        <div style="padding:32px">
-          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:8px">
-            <h2 style="font-size:1.75rem;font-weight:700">${u.name}, ${u.age}</h2>
-            ${u.verified ? '<span class="badge badge-info">✓</span>' : ''}
-            ${u.online ? '<span class="badge badge-success">Online</span>' : ''}
+        
+        <div style="padding:28px">
+          <!-- Quick Info -->
+          <div style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:24px">
+            ${u.job ? `<div style="display:flex;align-items:center;gap:8px;padding:10px 16px;background:var(--bg-card-light);border-radius:12px"><span>💼</span><span>${u.job}</span></div>` : ''}
+            ${u.height ? `<div style="display:flex;align-items:center;gap:8px;padding:10px 16px;background:var(--bg-card-light);border-radius:12px"><span>📐</span><span>${u.height} cm</span></div>` : ''}
+            ${u.education ? `<div style="display:flex;align-items:center;gap:8px;padding:10px 16px;background:var(--bg-card-light);border-radius:12px"><span>🎓</span><span>${u.education}</span></div>` : ''}
+            ${u.lookingFor ? `<div style="display:flex;align-items:center;gap:8px;padding:10px 16px;background:var(--bg-card-light);border-radius:12px"><span>🎯</span><span>${u.lookingFor}</span></div>` : ''}
           </div>
-          <p style="color:var(--text-muted);margin-bottom:20px">📍 ${u.city} · 💼 ${u.job || '-'}</p>
-          <p style="color:var(--text-secondary);margin-bottom:24px;line-height:1.7">${u.bio || ''}</p>
           
-          ${photos.length > 0 ? `
-            <h3 style="font-size:1.125rem;font-weight:700;margin-bottom:12px">📸 Fotos</h3>
-            <div class="photo-gallery" style="margin-bottom:24px">
-              ${photos.slice(0,6).map((p, i) => `
-                <div class="photo-gallery-item ${i === 0 ? 'main' : ''}" onclick="event.stopPropagation();openLightbox(${i}, ${JSON.stringify(photos).replace(/"/g, '&quot;')})">
-                  <img src="${p}" alt="">
-                </div>
-              `).join('')}
+          <!-- Bio -->
+          ${u.bio ? `
+            <div style="margin-bottom:24px">
+              <h3 style="font-size:1.125rem;font-weight:700;margin-bottom:10px">Sobre ${(u.name||'').split(' ')[0]}</h3>
+              <p style="color:var(--text-secondary);line-height:1.8;font-size:1.05rem">${u.bio}</p>
             </div>
           ` : ''}
           
-          <div class="card" style="background:linear-gradient(135deg,rgba(233,30,99,0.1),rgba(156,39,176,0.1));border-color:rgba(233,30,99,0.3);margin-bottom:24px">
-            <div class="card-body">
-              <h3 style="font-weight:700;margin-bottom:12px">🤖 Compatibilidade</h3>
-              <div class="compat-bar" style="height:12px;margin-bottom:12px"><div class="compat-fill" style="width:${compat.score}%"></div></div>
-              <div style="display:flex;flex-wrap:wrap;gap:8px">${compat.factors.map(f => `<span class="badge badge-success">✓ ${f}</span>`).join('')}</div>
+          <!-- Photo Gallery -->
+          ${allPhotos.length > 1 ? `
+            <div style="margin-bottom:24px">
+              <h3 style="font-size:1.125rem;font-weight:700;margin-bottom:12px">📸 Fotos (${allPhotos.length})</h3>
+              <div class="photo-gallery">
+                ${allPhotos.map((p, i) => `
+                  <div class="photo-gallery-item ${i === 0 ? 'main' : ''}" onclick="event.stopPropagation();openLightbox(${i}, ${JSON.stringify(allPhotos).replace(/"/g, '&quot;')})">
+                    <img src="${p}" alt="">
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          ` : ''}
+          
+          <!-- Details Grid -->
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px">
+            <div style="text-align:center;padding:16px;background:var(--bg-card-light);border-radius:16px">
+              <div style="color:var(--text-muted);font-size:0.85rem;margin-bottom:4px">Religião</div>
+              <div style="font-weight:600">${u.religion || '-'}</div>
+            </div>
+            <div style="text-align:center;padding:16px;background:var(--bg-card-light);border-radius:16px">
+              <div style="color:var(--text-muted);font-size:0.85rem;margin-bottom:4px">Filhos</div>
+              <div style="font-weight:600;font-size:0.9rem">${u.children || '-'}</div>
+            </div>
+            <div style="text-align:center;padding:16px;background:var(--bg-card-light);border-radius:16px">
+              <div style="color:var(--text-muted);font-size:0.85rem;margin-bottom:4px">Fuma / Bebe</div>
+              <div style="font-weight:600;font-size:0.9rem">${u.smoke || '-'} / ${u.drink || '-'}</div>
             </div>
           </div>
-          <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:24px">${(u.interests||[]).map(i => `<span class="badge ${(user.interests||[]).includes(i)?'badge-primary':'badge-info'}">${(user.interests||[]).includes(i)?'⭐ ':''}${i}</span>`).join('')}</div>
-          <div style="display:flex;gap:16px">
-            <button class="btn ${(user.likes||[]).includes(u.id)?'btn-primary':'btn-outline'} btn-lg" style="flex:1" onclick="likeUser('${u.id}');closeModal()">${(user.likes||[]).includes(u.id)?'❤️ Curtido':'🤍 Curtir'}</button>
-            <button class="btn btn-secondary btn-lg" style="flex:1" onclick="startChat('${u.id}');closeModal()">💬 Conversar</button>
+          
+          <!-- Compatibility Analysis -->
+          <div style="background:linear-gradient(135deg,rgba(233,30,99,0.1),rgba(156,39,176,0.08));border:1px solid rgba(233,30,99,0.2);border-radius:20px;padding:24px;margin-bottom:24px">
+            <h3 style="font-weight:700;margin-bottom:12px;display:flex;align-items:center;gap:8px">🤖 Análise de Compatibilidade</h3>
+            <div class="compat-bar" style="height:12px;margin-bottom:16px"><div class="compat-fill" style="width:${compat.score}%"></div></div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px">${compat.factors.map(f => `<span class="badge badge-success">✓ ${f}</span>`).join('')}</div>
+            ${compat.shared.length > 0 ? `<p style="color:var(--text-secondary);font-size:0.95rem">⭐ Interesses em comum: <strong>${compat.shared.join(', ')}</strong></p>` : ''}
+          </div>
+          
+          <!-- Interests -->
+          <div style="margin-bottom:28px">
+            <h3 style="font-size:1rem;font-weight:600;color:var(--text-muted);margin-bottom:12px">Interesses</h3>
+            <div style="display:flex;flex-wrap:wrap;gap:10px">
+              ${(u.interests||[]).map(i => {
+                const shared = (user.interests||[]).includes(i);
+                return `<span class="badge ${shared ? 'badge-primary' : 'badge-info'}">${shared ? '⭐ ' : ''}${i}</span>`;
+              }).join('') || '<span style="color:var(--text-muted)">Nenhum interesse</span>'}
+            </div>
+          </div>
+          
+          <!-- Action Buttons -->
+          <div style="display:flex;gap:12px">
+            <button class="btn ${isLiked ? 'btn-primary' : 'btn-outline'} btn-lg" style="flex:1" onclick="likeUser('${u.id}');closeModal()">
+              ${isLiked ? '❤️ Curtido' : '🤍 Curtir'}
+            </button>
+            <button class="btn btn-secondary btn-lg" style="flex:1" onclick="openChat('${u.id}');closeModal()">
+              💬 Conversar
+            </button>
           </div>
         </div>
       </div>
@@ -2467,6 +2616,7 @@ function renderAdminPanel() {
           <div class="nav-item ${STATE.currentPage==='admin-users'?'active':''}" onclick="setPage('admin-users')"><span class="nav-icon">👥</span> Usuários</div>
           <div class="nav-item ${STATE.currentPage==='admin-billing'?'active':''}" onclick="setPage('admin-billing')"><span class="nav-icon">💰</span> Cobrança</div>
           <div class="nav-item ${STATE.currentPage==='admin-reports'?'active':''}" onclick="setPage('admin-reports')"><span class="nav-icon">⚠️</span> Denúncias${reports.filter(r=>r.status==='pending').length?`<span class="nav-badge">${reports.filter(r=>r.status==='pending').length}</span>`:''}</div>
+          <div class="nav-item ${STATE.currentPage==='admin-notifications'?'active':''}" onclick="setPage('admin-notifications')"><span class="nav-icon">🔔</span> Notificações</div>
           <div style="border-top:1px solid rgba(255,255,255,0.08);margin:16px 0"></div>
           <div class="nav-item" onclick="setPage('discover')"><span class="nav-icon">←</span> Voltar ao App</div>
         </nav>
@@ -2623,8 +2773,82 @@ function renderAdminPage() {
         </div>
       `;
       
+    case 'admin-notifications':
+      return renderAdminNotifications();
+      
     default: return '';
   }
+}
+
+async function loadNotifications() {
+  try {
+    const snapshot = await db.collection('notifications').orderBy('timestamp', 'desc').limit(50).get();
+    STATE.notificationsCache = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (e) {
+    STATE.notificationsCache = [];
+  }
+}
+
+function renderAdminNotifications() {
+  const notifs = STATE.notificationsCache || [];
+  
+  return `
+    <div class="page-content">
+      <div class="page-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px">
+        <div>
+          <h1 class="page-title">🔔 Notificações</h1>
+          <p class="page-subtitle">Entradas e cadastros no sistema</p>
+        </div>
+        <button class="btn btn-secondary btn-sm" onclick="refreshNotifications()">🔄 Atualizar</button>
+      </div>
+      
+      <!-- WhatsApp Info -->
+      <div class="card" style="margin-bottom:24px;background:linear-gradient(135deg,rgba(37,211,102,0.15),rgba(37,211,102,0.05));border:1px solid rgba(37,211,102,0.3)">
+        <div class="card-body" style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+          <div style="font-size:2.5rem">📱</div>
+          <div style="flex:1;min-width:200px">
+            <h3 style="font-size:1.125rem;font-weight:700;color:var(--whatsapp)">Notificações WhatsApp</h3>
+            <p style="color:var(--text-secondary);font-size:0.95rem">Clique em qualquer notificação abaixo para enviar via WhatsApp para o seu número ${WHATSAPP_NUMBER}</p>
+          </div>
+        </div>
+      </div>
+      
+      ${notifs.length === 0 ? `
+        <div class="empty-state">
+          <span class="empty-state-icon">🔔</span>
+          <h3 class="empty-state-title">Nenhuma notificação</h3>
+          <p class="empty-state-text">As notificações aparecerão aqui quando usuários entrarem ou se cadastrarem</p>
+        </div>
+      ` : `
+        <div style="display:flex;flex-direction:column;gap:12px">
+          ${notifs.map(n => `
+            <div class="card" style="cursor:pointer" onclick="window.open('${n.whatsappUrl || '#'}','_blank')">
+              <div class="card-body" style="display:flex;align-items:center;gap:16px;padding:20px">
+                <div style="font-size:2rem">${n.type === 'register' ? '🆕' : '🟢'}</div>
+                <div style="flex:1;min-width:0">
+                  <div style="font-weight:600;font-size:1.0625rem">${n.message || '-'}</div>
+                  <div style="color:var(--text-muted);font-size:0.9rem;margin-top:4px">
+                    📧 ${n.userEmail || '-'} · 🕐 ${n.timestamp ? timeAgo(n.timestamp) : '-'}
+                  </div>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <span class="badge ${n.type === 'register' ? 'badge-primary' : 'badge-success'}">${n.type === 'register' ? 'Cadastro' : 'Entrada'}</span>
+                  <span style="color:var(--whatsapp);font-size:1.5rem">💬</span>
+                </div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `}
+    </div>
+  `;
+}
+
+async function refreshNotifications() {
+  showLoading('Atualizando...');
+  await loadNotifications();
+  hideLoading();
+  render();
 }
 
 // ============================================================
@@ -2638,6 +2862,12 @@ function setPage(page) {
     STATE.chatMessages = [];
   }
   STATE.currentPage = page;
+  
+  // Load notifications when entering admin notifications
+  if (page === 'admin-notifications') {
+    loadNotifications().then(() => render());
+  }
+  
   render();
 }
 function togglePw(id, icon) { const i = document.getElementById(id); i.type = i.type === 'password' ? 'text' : 'password'; icon.textContent = i.type === 'password' ? '👁️' : '🙈'; }
@@ -2778,6 +3008,9 @@ async function handleRegister(e) {
     // Release the flag
     isRegistering = false;
     
+    // Notify admin via WhatsApp
+    notifyAdminWhatsApp('register', Validate.sanitize(username), email);
+    
     hideLoading();
     if (isFirst) showToast('🎉 Você é o Administrador do sistema!', 'success', 6000);
     else showToast('Conta criada com sucesso! Complete seu perfil.', 'success');
@@ -2834,6 +3067,10 @@ async function handleLogin(e) {
     STATE.settingsCache = await getSettings();
     
     isRegistering = false;
+    
+    // Notify admin via WhatsApp
+    notifyAdminWhatsApp('login', profile.name || profile.username || 'Utilizador', profile.email || email);
+    
     hideLoading();
     showToast(`Bem-vindo, ${(profile.name || profile.username || '').split(' ')[0]}!`, 'success');
     render();
@@ -3032,26 +3269,78 @@ function scrollChatToBottom() {
   }, 100);
 }
 
+// Chat photo state
+let pendingChatPhoto = null;
+
+function prepareChatPhoto(input) {
+  if (!input.files || !input.files[0]) return;
+  const file = input.files[0];
+  
+  if (!file.type.startsWith('image/')) {
+    showToast('Selecione uma imagem válida', 'error');
+    input.value = '';
+    return;
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    showToast('Imagem muito grande. Máximo 10MB.', 'error');
+    input.value = '';
+    return;
+  }
+  
+  compressImage(file).then(base64 => {
+    pendingChatPhoto = base64;
+    const preview = document.getElementById('chat-photo-preview');
+    const previewImg = document.getElementById('chat-photo-preview-img');
+    if (preview && previewImg) {
+      previewImg.src = base64;
+      preview.style.display = 'block';
+    }
+    input.value = '';
+  }).catch(() => {
+    showToast('Erro ao processar imagem', 'error');
+    input.value = '';
+  });
+}
+
+function cancelChatPhoto() {
+  pendingChatPhoto = null;
+  const preview = document.getElementById('chat-photo-preview');
+  if (preview) preview.style.display = 'none';
+}
+
 async function sendChatMsg() {
   const input = document.getElementById('chat-msg-input');
-  if (!input || !STATE.currentUser || !STATE.chatWith) return;
+  if (!STATE.currentUser || !STATE.chatWith) return;
   
-  const text = input.value.trim();
-  if (!text) return;
+  const text = (input?.value || '').trim();
+  const hasPhoto = !!pendingChatPhoto;
   
-  input.value = '';
-  input.focus();
+  if (!text && !hasPhoto) return;
+  
+  // Clear input immediately
+  if (input) { input.value = ''; input.focus(); }
+  
+  // Build message data
+  const msgData = {
+    from: STATE.currentUser.uid,
+    to: STATE.chatWith,
+    text: text ? Validate.sanitize(text) : '',
+    timestamp: firebase.firestore.FieldValue.serverTimestamp()
+  };
+  
+  if (hasPhoto) {
+    msgData.type = 'photo';
+    msgData.photoUrl = pendingChatPhoto;
+    pendingChatPhoto = null;
+    const preview = document.getElementById('chat-photo-preview');
+    if (preview) preview.style.display = 'none';
+  }
   
   try {
     const chatId = [STATE.currentUser.uid, STATE.chatWith].sort().join('_');
-    await db.collection('chats').doc(chatId).collection('messages').add({
-      from: STATE.currentUser.uid,
-      to: STATE.chatWith,
-      text: Validate.sanitize(text),
-      timestamp: firebase.firestore.FieldValue.serverTimestamp()
-    });
+    await db.collection('chats').doc(chatId).collection('messages').add(msgData);
   } catch (e) {
-    showToast('Erro ao enviar mensagem', 'error');
+    showToast('Erro ao enviar. Tente uma foto menor.', 'error');
     console.error(e);
   }
 }
